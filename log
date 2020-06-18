@@ -1,0 +1,450 @@
+12:20:47 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:47 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:47 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:47 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:47 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:47 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:48 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:48 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:48 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:48 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:48 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:48 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:49 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:50 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:51 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:51 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:51 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:51 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:51 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:51 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:51 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:51 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:51 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:51 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:51 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:51 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:52 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:52 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:52 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:52 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:52 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:52 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:52 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:52 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:52 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:52 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:52 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:52 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:52 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:52 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:52 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:52 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:52 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:52 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:53 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:53 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:53 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:53 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:53 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:53 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:53 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:53 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:53 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:53 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:53 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:53 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:54 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:54 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:54 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:54 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:54 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:54 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:54 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:54 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:54 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:54 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:54 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:54 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:55 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:55 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:55 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:55 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:55 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:55 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:55 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:55 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:55 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:55 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:55 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:55 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:56 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:56 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:56 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:56 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:56 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:56 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:56 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:56 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:56 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:56 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:56 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:56 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:57 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:57 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:57 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:57 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:57 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:57 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:57 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:57 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:57 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:57 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:57 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:57 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:58 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:58 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:58 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:58 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:58 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:58 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:58 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:58 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:58 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:58 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:58 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:58 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:59 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:59 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:59 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:59 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:59 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:59 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:59 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:59 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:59 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:59 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:59 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:59 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:59 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:59 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:59 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:20:59 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:20:59 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:20:59 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:00 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:00 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:00 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:00 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:00 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:00 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:01 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:02 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:02 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:02 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:02 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:02 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:02 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:02 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:02 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:02 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:02 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:02 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:02 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:03 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:03 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:03 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:03 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:03 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:03 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:03 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:03 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:03 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:03 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:03 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:03 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:03 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:03 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:03 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:03 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:03 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:03 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:04 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:05 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:07 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:07 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:07 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:07 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:07 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:07 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:09 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:09 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:09 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:09 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:09 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:09 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:10 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:10 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:10 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
+12:21:10 [DEBUG] (1) cursive_core::views::linear_layout: Req: XY { x: 211, y: 30 }
+12:21:10 [DEBUG] (1) cursive_core::views::linear_layout: Ideal sizes: [XY { x: 105, y: 30 }, XY { x: 105, y: 30 }]
+12:21:10 [DEBUG] (1) cursive_core::views::linear_layout: Ideal result: XY { x: 210, y: 30 }
