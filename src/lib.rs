@@ -66,9 +66,12 @@ fn load_path(cursive: &mut Cursive, base_path: &str) {
     select::render_lists(cursive);
 }
 
+fn push_screen<T: cursive::View>(cursive: &mut Cursive, view: T) {
+    cursive.add_layer(PaddedView::lrtb(1, 1, 1, 1, view).max_width(cursive.screen_size().x - 10));
+}
 fn screen<T: cursive::View>(cursive: &mut Cursive, view: T) {
     cursive.pop_layer();
-    cursive.add_layer(PaddedView::lrtb(1, 1, 1, 1, view).max_width(cursive.screen_size().x - 10));
+    push_screen(cursive, view);
 }
 
 fn run_update<F: FnOnce(&mut Cursive) + 'static + Send>(sink: &mut cursive::CbSink, cb: F) {

@@ -22,6 +22,9 @@ impl DataNode {
             content: content.into(),
         }
     }
+    pub fn into_content(self) -> DataNodeContent {
+        self.content
+    }
 }
 
 #[derive(Debug)]
@@ -58,10 +61,13 @@ impl ModContent {
 }
 
 pub type DiffTree = HashMap<PathBuf, DiffNode>;
-pub type Conflicts = HashMap<PathBuf, Vec<(String, DiffNode)>>;
+// FIXME: this makes it possible for multiple mods with the same name to collide!
+pub type Conflict = Vec<(String, DiffNode)>;
+pub type Conflicts = HashMap<PathBuf, Conflict>;
 
+#[derive(Clone)]
 pub struct LinesChangeset(Vec<LineChange>);
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum LineChange {
     Same,
     Removed,
@@ -120,7 +126,7 @@ pub enum DiffNodeKind {
     ModifiedText,
 }
 impl DiffNode {
-    fn kind(&self) -> DiffNodeKind {
+    pub fn kind(&self) -> DiffNodeKind {
         match self {
             DiffNode::Binary(_) => DiffNodeKind::Binary,
             DiffNode::AddedText(_) => DiffNodeKind::AddedText,
@@ -161,14 +167,14 @@ impl DataTreeExt for DataTree {
 }
 
 pub trait ResultDiffTressExt<E>: Iterator<Item = Result<ModContent, E>> + Sized {
-    fn try_merge(self, on_progress: &mut cursive::CbSink) -> Result<(DiffTree, Conflicts), E> {
+    fn try_merge(self, on_progress: Option<&mut cursive::CbSink>) -> Result<(DiffTree, Conflicts), E> {
         let res = self.collect::<Result<Vec<_>, _>>()?;
         Ok(merge(res, on_progress))
     }
 }
 impl<I, E> ResultDiffTressExt<E> for I where I: Iterator<Item = Result<ModContent, E>> + Sized {}
 pub trait DiffTreesExt: Iterator<Item = ModContent> + Sized {
-    fn merge(self, on_progress: &mut cursive::CbSink) -> (DiffTree, Conflicts) {
+    fn merge(self, on_progress: Option<&mut cursive::CbSink>) -> (DiffTree, Conflicts) {
         merge(self, on_progress)
     }
 }
@@ -176,12 +182,12 @@ impl<I> DiffTreesExt for I where I: Iterator<Item = ModContent> + Sized {}
 
 pub fn merge(
     diffs: impl IntoIterator<Item = ModContent>,
-    on_progress: &mut cursive::CbSink,
+    mut on_progress: Option<&mut cursive::CbSink>,
 ) -> (DiffTree, Conflicts) {
     let mut conflicts = Conflicts::new();
     let mut merged = DiffTree::new();
 
-    crate::run_update(on_progress, |cursive| {
+    on_progress.as_mut().map(|sink| crate::run_update(sink, |cursive| {
         cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
             dialog.set_title("Merging fetched mods...");
             dialog.call_on_name("Loading part", |text: &mut TextView| {
@@ -191,7 +197,7 @@ pub fn merge(
                 text.set_content(" ");
             });
         });
-    });
+    }));
 
     // First, we'll fill the map which shows every mod touching some file.
     let mut usages: HashMap<PathBuf, Vec<Rc<RefCell<ModContent>>>> = HashMap::new();
@@ -208,7 +214,7 @@ pub fn merge(
     // Now, we'll operate on files.
     for (path, mut mods) in usages {
         let string_path = path.to_string_lossy().to_string();
-        super::set_file_updated(on_progress, "Merging".into(), string_path);
+        on_progress.as_mut().map(|sink| super::set_file_updated(sink, "Merging".into(), string_path));
 
         // Sanity check: mods vec shouldn't be empty.
         if mods.is_empty() {
@@ -389,10 +395,19 @@ pub fn merge(
 }
 
 pub trait DiffTreeExt: Sized {
-    fn apply(&self, original: DataTree);
+    fn apply_to(self, original: DataTree) -> DataTree;
 }
 impl DiffTreeExt for DiffTree {
-    fn apply(&self, original: DataTree) {
-        todo!();
+    fn apply_to(self, original: DataTree) -> DataTree {
+        self.into_iter().map(|(path, changes)| {
+            match changes {
+                DiffNode::Binary(source) => (path, DataNode::new(source, None)),
+                DiffNode::AddedText(text) => (path, DataNode::new("", text)),
+                DiffNode::ModifiedText(_) => {
+                    
+                    todo!();
+                }
+            }
+        }).collect()
     }
 }

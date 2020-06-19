@@ -1,4 +1,6 @@
 mod diff;
+mod deploy;
+mod resolve;
 
 use cursive::{
     traits::{Finder, Nameable},
@@ -96,7 +98,9 @@ fn do_bundle(
         .filter(|the_mod| the_mod.selected)
         .map(|the_mod| extract_mod(&mut for_mods_extract, the_mod, &original_data));
 
-    let mods = mods.try_merge(on_file_read)?;
+    let (merged, conflicts) = mods.try_merge(Some(on_file_read))?;
+    let resolved = resolve::resolve(on_file_read, conflicts);
+    let merged = resolve::merge_resolved(merged, resolved);
 
     crate::run_update(on_file_read, |cursive| {
         crate::screen(cursive, Dialog::around(TextView::new("Loaded!")));
