@@ -7,6 +7,7 @@ fn main() {
         LevelFilter::Debug,
         simplelog::ConfigBuilder::new()
             .add_filter_ignore_str("serde_xml_rs")
+            .add_filter_ignore_str("cursive_core")
             .build(),
         File::create("log").unwrap(),
     )

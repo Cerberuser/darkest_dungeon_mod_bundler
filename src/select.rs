@@ -33,7 +33,7 @@ pub fn render_lists(cursive: &mut Cursive) {
             mods_list(cursive)
                 .iter()
                 .cloned()
-                .map(|the_mod| (the_mod.name.clone(), the_mod)),
+                .map(|the_mod| (the_mod.name().to_owned(), the_mod)),
         )
         .on_submit(do_select)
         .with_name("Available")
@@ -56,7 +56,7 @@ pub fn render_lists(cursive: &mut Cursive) {
                     .child(Half(Panel::new(available).title("Available")))
                     .child(Half(Panel::new(selected).title("Selected"))),
             )
-            .button("Make bundle!", crate::bundler::do_bundle)
+            .button("Make bundle!", crate::bundler::bundle)
             .h_align(cursive::align::HAlign::Center)
             .with_name("Mods selection")
             .full_screen(),
@@ -74,10 +74,12 @@ fn do_select(cursive: &mut Cursive, item: &Mod) {
             let idx = list
                 .iter()
                 .position(|(_, the_mod)| the_mod.path == item.path);
-            idx.map(|idx| list.remove_item(idx))
+            let cb = idx.map(|idx| list.remove_item(idx));
+            list.select_down(1);
+            cb
         });
         dialog.call_on_name("Selected", |list: &mut SelectView<Mod>| {
-            list.add_item(item.name.clone(), item.clone());
+            list.add_item(item.name(), item.clone());
         });
         cb
     });
@@ -94,14 +96,16 @@ fn do_deselect(cursive: &mut Cursive, item: &Mod) {
         .map(|the_mod| the_mod.selected = false);
     let cb = cursive.call_on_name("Mods selection", |dialog: &mut Dialog| {
         dialog.call_on_name("Available", |list: &mut SelectView<Mod>| {
-            list.add_item(item.name.clone(), item.clone());
+            list.add_item(item.name(), item.clone());
             list.sort_by_label();
         });
         let cb = dialog.call_on_name("Selected", |list: &mut SelectView<Mod>| {
             let idx = list
                 .iter()
                 .position(|(_, the_mod)| the_mod.path == item.path);
-            idx.map(|idx| list.remove_item(idx))
+                let cb = idx.map(|idx| list.remove_item(idx));
+                list.select_down(1);
+                cb
         });
         cb
     });

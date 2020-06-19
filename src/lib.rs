@@ -9,9 +9,10 @@ use cursive::{
     Cursive, View,
 };
 use serde::Deserialize;
-use std::path::PathBuf;
+use std::{io::Write, path::PathBuf};
+use crossterm::{terminal::SetTitle, QueueableCommand};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default, Debug, Clone)]
 struct Project {
     #[serde(rename = "Title")]
     title: String,
@@ -20,18 +21,23 @@ struct Project {
 #[derive(Default, Debug, Clone)]
 struct Mod {
     selected: bool,
-    name: String,
     path: PathBuf,
+    project: Project,
+}
+impl Mod {
+    fn name(&self) -> &str {
+        &self.project.title
+    }
 }
 
-struct Data {
+struct GlobalData {
     base_path: PathBuf,
     mods: Vec<Mod>,
 }
 
 fn mods_list(cursive: &mut Cursive) -> &mut [Mod] {
     &mut cursive
-        .user_data::<crate::Data>()
+        .user_data::<crate::GlobalData>()
         .expect("Mods data wasn't set")
         .mods
 }
@@ -49,20 +55,29 @@ fn load_path(cursive: &mut Cursive, base_path: &str) {
                     let project: Project = serde_xml_rs::from_reader(file)?;
                     Ok(Mod {
                         selected: false,
-                        name: project.title,
                         path,
+                        project,
                     })
                 })
         })
         .collect::<Result<Vec<_>, _>>()
         .expect("Error iterating");
-    cursive.set_user_data(Data { base_path, mods });
+    cursive.set_user_data(GlobalData { base_path, mods });
     select::render_lists(cursive);
 }
 
 fn screen<T: cursive::View>(cursive: &mut Cursive, view: T) {
     cursive.pop_layer();
-    cursive.add_layer(PaddedView::lrtb(10, 10, 10, 10, view).full_screen());
+    cursive.add_layer(PaddedView::lrtb(1, 1, 1, 1, view).max_width(cursive.screen_size().x - 10));
+}
+
+fn run_update<F: FnOnce(&mut Cursive) + 'static + Send>(sink: &mut cursive::CbSink, cb: F) {
+    sink.send(Box::new(cb)).expect("Cursive sink was unexpectedly dropped, this is probably a bug");
+}
+
+fn setup_term() -> crossterm::Result<()> {
+    std::io::stdout().queue(SetTitle("Darkest Dungeon Mods Bundler"))?.flush()?;
+    Ok(())
 }
 
 pub fn run() {
@@ -84,6 +99,17 @@ pub fn run() {
         .full_width();
 
     screen(&mut cursive, dialog);
+    
+    let sink = cursive.cb_sink().clone();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        let mut sink = sink.clone();
+        log::error!("{:?}", panic_info);
+        crate::run_update(&mut sink, |cursive| cursive.quit());
+    }));
 
+    cursive.step();
+    if let Err(e) = setup_term() {
+        log::warn!("Failed to properly setup terminal: {}. The application will still work", e);
+    }
     cursive.run();
 }
