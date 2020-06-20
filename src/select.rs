@@ -1,10 +1,11 @@
-use crate::{mods_list, Mod};
+use crate::loader::{mods_list, Mod};
 use cursive::{
     traits::{Finder, Nameable, Resizable, Scrollable},
     view::ViewWrapper,
     views::{Dialog, LinearLayout, Panel, SelectView},
     Cursive, Vec2, View,
 };
+use log::*;
 
 struct Half<V: View>(V);
 
@@ -61,62 +62,69 @@ pub fn render_lists(cursive: &mut Cursive) {
 }
 
 fn do_select(cursive: &mut Cursive, item: &Mod) {
-    eprintln!("Selecting {:?}", item);
-    mods_list(cursive)
+    debug!("Selecting mod: {}", item.name());
+    if let Some(the_mod) = mods_list(cursive)
         .iter_mut()
         .find(|the_mod| the_mod.path == item.path)
-        .map(|the_mod| the_mod.selected = true);
+    {
+        the_mod.selected = true;
+    }
     let cb = cursive.call_on_name("Mods selection", |dialog: &mut Dialog| {
         let cb = dialog.call_on_name("Available", |list: &mut SelectView<Mod>| {
             let idx = list
                 .iter()
                 .position(|(_, the_mod)| the_mod.path == item.path);
-            let cb = idx.map(|idx| {
+            idx.map(|idx| {
                 let cb = list.remove_item(idx);
                 if idx > 0 {
                     list.select_down(1);
                 };
                 cb
-            });
-            cb
+            })
         });
         dialog.call_on_name("Selected", |list: &mut SelectView<Mod>| {
             list.add_item(item.name(), item.clone());
         });
         cb
     });
-    cb.map(|cb| {
-        cb.map(|cb| cb.map(|cb| cb(cursive)));
-    });
+    // it's ugly, yeah
+    // there are three layers of Options - one from `position` and two from `call_by_name`,
+    // and attempt to use `and_then` would be even more ugly
+    if let Some(Some(Some(cb))) = cb {
+        cb(cursive);
+    }
 }
 
 fn do_deselect(cursive: &mut Cursive, item: &Mod) {
-    eprintln!("Deselecting {:?}", item);
-    mods_list(cursive)
+    debug!("Deselecting mod: {}", item.name());
+    if let Some(the_mod) = mods_list(cursive)
         .iter_mut()
         .find(|the_mod| the_mod.path == item.path)
-        .map(|the_mod| the_mod.selected = false);
+    {
+        the_mod.selected = false;
+    }
     let cb = cursive.call_on_name("Mods selection", |dialog: &mut Dialog| {
         dialog.call_on_name("Available", |list: &mut SelectView<Mod>| {
             list.add_item(item.name(), item.clone());
             list.sort_by_label();
         });
-        let cb = dialog.call_on_name("Selected", |list: &mut SelectView<Mod>| {
+        dialog.call_on_name("Selected", |list: &mut SelectView<Mod>| {
             let idx = list
                 .iter()
                 .position(|(_, the_mod)| the_mod.path == item.path);
-            let cb = idx.map(|idx| {
+            idx.map(|idx| {
                 let cb = list.remove_item(idx);
                 if idx > 0 {
                     list.select_down(1);
                 };
                 cb
-            });
-            cb
-        });
-        cb
+            })
+        })
     });
-    cb.map(|cb| {
-        cb.map(|cb| cb.map(|cb| cb(cursive)));
-    });
+    // it's ugly, yeah
+    // there are three layers of Options - one from `position` and two from `call_by_name`,
+    // and attempt to use `and_then` would be even more ugly
+    if let Some(Some(Some(cb))) = cb {
+        cb(cursive);
+    }
 }

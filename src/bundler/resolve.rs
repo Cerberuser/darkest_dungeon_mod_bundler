@@ -51,7 +51,7 @@ pub fn merge_resolved(merged: DiffTree, resolved: DiffTree) -> DiffTree {
     ]
     .into_iter()
     .merge(None);
-    debug_assert!(conflicts.len() == 0);
+    debug_assert!(conflicts.is_empty());
     merged
 }
 

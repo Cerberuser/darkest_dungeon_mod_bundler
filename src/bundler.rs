@@ -1,12 +1,15 @@
 mod diff;
 mod resolve;
 
+use crate::loader::GlobalData;
 use cursive::{
     traits::{Finder, Nameable},
     views::{Dialog, LinearLayout, TextView},
     Cursive,
 };
-use diff::{DataNode, DataTree, DataTreeExt, ModContent, ResultDiffTressExt, DiffTreeExt, DataNodeContent};
+use diff::{
+    DataNode, DataNodeContent, DataTree, DataTreeExt, DiffTreeExt, ModContent, ResultDiffTressExt,
+};
 use log::*;
 use std::{
     fs::read_dir,
@@ -14,7 +17,7 @@ use std::{
 };
 
 pub fn bundle(cursive: &mut Cursive) {
-    let global_data: crate::GlobalData = cursive.take_user_data().expect("No data was set");
+    let global_data: GlobalData = cursive.take_user_data().expect("No data was set");
 
     crate::screen(
         cursive,
@@ -51,7 +54,8 @@ pub fn bundle(cursive: &mut Cursive) {
                     Some(s) => &s[..],
                     None => "Box<Any>",
                 },
-            }.to_string();
+            }
+            .to_string();
             crate::run_update(&mut on_error, move |cursive| {
                 crate::screen(
                     cursive,
@@ -64,10 +68,7 @@ pub fn bundle(cursive: &mut Cursive) {
     });
 }
 
-fn do_bundle(
-    on_file_read: &mut cursive::CbSink,
-    global_data: crate::GlobalData,
-) -> std::io::Result<()> {
+fn do_bundle(on_file_read: &mut cursive::CbSink, global_data: GlobalData) -> std::io::Result<()> {
     let path = crate::paths::game(&global_data.base_path);
     let mut original_data = extract_data(on_file_read, &path, &path, true)?;
 
@@ -84,7 +85,7 @@ fn do_bundle(
             let dlc_dir_name = path
                 .file_name()
                 .map(std::ffi::OsStr::to_string_lossy)
-                .unwrap_or("".into())
+                .unwrap_or_else(|| "".into())
                 .to_string();
             crate::run_update(on_file_read, |cursive| {
                 cursive
@@ -134,10 +135,12 @@ fn do_bundle(
 fn deploy(game_path: &Path, bundle: DataTree) -> std::io::Result<()> {
     let base = game_path.join("mods/generated_bundle");
 
-    let project = crate::Project { title: "Generated mods bundle".into() };
+    let project = crate::loader::Project {
+        title: "Generated mods bundle".into(),
+    };
     let project_xml = std::fs::File::create(base.join("project.xml"))?;
     match serde_xml_rs::to_writer(project_xml, &project) {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(serde_xml_rs::Error::Io { source }) => return Err(source),
         _ => panic!("Unexpected error on writing XML"),
     };
@@ -148,7 +151,7 @@ fn deploy(game_path: &Path, bundle: DataTree) -> std::io::Result<()> {
         match content {
             DataNodeContent::Binary => {
                 std::fs::copy(source, target)?;
-            },
+            }
             DataNodeContent::Text(text) => {
                 std::fs::write(target, text)?;
             }
@@ -159,7 +162,7 @@ fn deploy(game_path: &Path, bundle: DataTree) -> std::io::Result<()> {
 
 fn extract_mod(
     on_file_read: &mut cursive::CbSink,
-    the_mod: crate::Mod,
+    the_mod: crate::loader::Mod,
     original_data: &DataTree,
 ) -> std::io::Result<ModContent> {
     let title = the_mod.name().to_owned();
@@ -196,11 +199,11 @@ fn extract_data(
                 Ok(vec![])
             } else {
                 extract_from_file(on_file_read, base_path, &item_path)
-                    .map(|(path, data)| vec![(path, data.into())])
+                    .map(|(path, data)| vec![(path, data)])
             }
         })
         .collect::<Result<Vec<Vec<_>>, _>>()?;
-    Ok(items.into_iter().flat_map(|v| v).collect())
+    Ok(items.into_iter().flatten().collect())
 }
 
 fn set_file_updated(on_file_read: &mut cursive::CbSink, prefix: String, path: String) {

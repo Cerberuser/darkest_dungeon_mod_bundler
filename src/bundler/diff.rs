@@ -4,7 +4,12 @@ use cursive::{
 };
 use difference::{Changeset, Difference};
 use log::*;
-use std::{cell::RefCell, collections::{HashSet, HashMap}, path::PathBuf, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    rc::Rc,
+};
 
 pub type DataTree = HashMap<PathBuf, DataNode>;
 
@@ -70,7 +75,7 @@ pub type Conflicts = HashMap<PathBuf, Conflict>;
 pub struct LinesChangeset(pub Vec<Option<LineChange>>);
 impl LinesChangeset {
     fn diff(first: &str, second: &str) -> Self {
-        let lines_count = first.split("\n").count();
+        let lines_count = first.split('\n').count();
         let mut inner = Vec::with_capacity(lines_count);
         let mut removed = vec![];
         let mut modification = None;
@@ -81,10 +86,10 @@ impl LinesChangeset {
                         inner.push(Some(LineChange::Modified(modification)));
                     }
                     inner.extend(removed.drain(..));
-                    inner.extend(lines.split("\n").map(|_| None));
+                    inner.extend(lines.split('\n').map(|_| None));
                 }
                 Difference::Add(lines) => {
-                    let added: Vec<String> = lines.split("\n").map(String::from).collect();
+                    let added: Vec<String> = lines.split('\n').map(String::from).collect();
                     for line in added {
                         match removed.pop() {
                             Some(_) => {
@@ -95,8 +100,12 @@ impl LinesChangeset {
                             }
                             None => {
                                 modification = match modification.take() {
-                                    Some(LineModification::Replaced(s)) => Some(LineModification::Replaced(s + "\n" + &line)),
-                                    Some(LineModification::Added(s)) => Some(LineModification::Added(s + "\n" + &line)),
+                                    Some(LineModification::Replaced(s)) => {
+                                        Some(LineModification::Replaced(s + "\n" + &line))
+                                    }
+                                    Some(LineModification::Added(s)) => {
+                                        Some(LineModification::Added(s + "\n" + &line))
+                                    }
                                     None => {
                                         let last = inner.pop();
                                         // Either the list is empty, or the last line was unchanged
@@ -220,7 +229,7 @@ pub fn merge(
     let mut conflicts = Conflicts::new();
     let mut merged = DiffTree::new();
 
-    on_progress.as_mut().map(|sink| {
+    if let Some(sink) = on_progress.as_mut() {
         crate::run_update(sink, |cursive| {
             cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
                 dialog.set_title("Merging fetched mods...");
@@ -232,13 +241,15 @@ pub fn merge(
                 });
             });
         })
-    });
+    }
 
     // First, we'll fill the map which shows every mod touching some file.
     let mut usages: HashMap<PathBuf, Vec<Rc<RefCell<ModContent>>>> = HashMap::new();
     for diff in diffs {
         let diff = Rc::new(RefCell::new(diff));
-        for (path, _) in &diff.borrow().diff {
+        for path in diff.borrow().diff.keys() {
+            // False positive from clippy - https://github.com/rust-lang/rust-clippy/issues/5693
+            #[allow(clippy::or_fun_call)]
             usages
                 .entry(path.clone())
                 .or_insert(vec![])
@@ -249,9 +260,9 @@ pub fn merge(
     // Now, we'll operate on files.
     for (path, mut mods) in usages {
         let string_path = path.to_string_lossy().to_string();
-        on_progress
-            .as_mut()
-            .map(|sink| super::set_file_updated(sink, "Merging".into(), string_path));
+        if let Some(sink) = on_progress.as_mut() {
+            super::set_file_updated(sink, "Merging".into(), string_path)
+        }
 
         // Sanity check: mods vec shouldn't be empty.
         if mods.is_empty() {
@@ -312,7 +323,7 @@ pub fn merge(
                     let mut merged_changes = vec![];
                     for line_change in line_changes {
                         // Trivial case - no changes
-                        if line_change.len() == 0 {
+                        if line_change.is_empty() {
                             merged_changes.push(None);
                             for change in conflict_changes.values_mut() {
                                 change.push(None);
@@ -345,8 +356,7 @@ pub fn merge(
                             // Now, let's operate on "conflicts".
                             let mut line_change = line_change;
                             for (name, conflict) in conflict_changes.iter_mut() {
-                                let change = line_change
-                                    .remove(name);
+                                let change = line_change.remove(name);
                                 conflict.push(change);
                             }
                         }
@@ -359,7 +369,7 @@ pub fn merge(
                         );
                     }
                     conflict_changes.retain(|_, list| !list.iter().all(Option::is_none));
-                    if conflict_changes.len() > 0 {
+                    if !conflict_changes.is_empty() {
                         conflicts.insert(
                             path,
                             conflict_changes
@@ -392,16 +402,23 @@ impl DiffTreeExt for DiffTree {
                         DataNodeContent::Binary => unreachable!(),
                         DataNodeContent::Text(text) => text,
                     };
-                    let text = orig.lines().zip(changeset.0).filter_map(|(orig, change)| match change {
-                        Some(change) => match change {
-                            LineChange::Removed => None,
-                            LineChange::Modified(change) => match change {
-                                LineModification::Replaced(text) => Some(text),
-                                LineModification::Added(text) => Some(format!("{}\n{}", orig, text)),
-                            }
-                        },
-                        None => Some(orig.into()),
-                    }).collect::<Vec<_>>().join("\n");
+                    let text = orig
+                        .lines()
+                        .zip(changeset.0)
+                        .filter_map(|(orig, change)| match change {
+                            Some(change) => match change {
+                                LineChange::Removed => None,
+                                LineChange::Modified(change) => match change {
+                                    LineModification::Replaced(text) => Some(text),
+                                    LineModification::Added(text) => {
+                                        Some(format!("{}\n{}", orig, text))
+                                    }
+                                },
+                            },
+                            None => Some(orig.into()),
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n");
                     (path, DataNode::new("", text))
                 }
             })
