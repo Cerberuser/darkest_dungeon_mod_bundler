@@ -1,10 +1,14 @@
 use super::diff::{
     Conflict, Conflicts, DataNode, DataNodeContent, DataTree, DataTreeExt, DiffNode, DiffNodeKind,
-    DiffTree, DiffTreeExt, DiffTreesExt, LinesChangeset, ModContent,
+    DiffTree, DiffTreeExt, DiffTreesExt, LineChange, LineModification, LinesChangeset, ModContent,
 };
 use crossbeam_channel::bounded;
-use cursive::views::Dialog;
-use std::path::PathBuf;
+use cursive::{
+    traits::{Nameable, Boxable},
+    views::{Dialog, EditView},
+};
+use std::fmt::Debug;
+use std::{collections::HashSet, path::PathBuf};
 
 pub fn resolve(sink: &mut cursive::CbSink, conflicts: Conflicts) -> DiffTree {
     conflicts
@@ -51,7 +55,7 @@ pub fn merge_resolved(merged: DiffTree, resolved: DiffTree) -> DiffTree {
     merged
 }
 
-fn ask_for_resolve<T: Send + Clone + 'static>(
+fn ask_for_resolve<T: Debug + Send + Clone + 'static>(
     sink: &mut cursive::CbSink,
     text: impl Into<String>,
     options: impl IntoIterator<Item = (String, T)>,
@@ -96,24 +100,135 @@ fn resolve_binary(sink: &mut cursive::CbSink, target: PathBuf, conflict: Conflic
     )
 }
 
-// TODO: this conflict can also be resolved manually, so here it'd be better to make separate handling
+fn render_line_choice(line: String) -> impl cursive::View {
+    cursive::views::LinearLayout::horizontal()
+        .child(cursive::views::TextView::new(line.clone()).full_width())
+        .child(cursive::views::Button::new("Use this", move |cursive| {
+            let line = line.clone();
+            cursive.call_on_name("Line resolve edit", move |edit: &mut EditView| {
+                edit.set_content(line)
+            });
+        }))
+}
+
+fn choose_line(
+    sink: &mut cursive::CbSink,
+    index: usize,
+    file: impl Into<PathBuf>,
+    lines: impl IntoIterator<Item = String>,
+) -> Option<String> {
+    let lines: Vec<_> = lines.into_iter().collect();
+    let file = file.into();
+    let (sender, receiver) = bounded(0);
+
+    crate::run_update(sink, move |cursive| {
+        let mut layout = cursive::views::LinearLayout::vertical();
+        lines.into_iter().for_each(|line| layout.add_child(render_line_choice(line)));
+        crate::push_screen(
+            cursive,
+            Dialog::around(
+                layout.child(EditView::new().with_name("Line resolve edit").full_width())
+            ).title(format!("Resolving line {} in file {}", index, file.to_string_lossy())).button("Resolve", move |cursive| {
+                let value = cursive.call_on_name("Line resolve edit", |edit: &mut EditView| edit.get_content()).unwrap();
+                cursive.pop_layer();
+                let value = match &*value.as_str() {
+                    "" => None,
+                    val => Some(val.to_string()),
+                };
+                sender.send(value).unwrap();
+            }),
+        );
+    });
+    receiver
+        .recv()
+        .expect("Sender was dropped without sending anything")
+}
+
+fn resolve_changes_manually(
+    sink: &mut cursive::CbSink,
+    target: PathBuf,
+    conflict: Conflict,
+) -> LinesChangeset {
+    let changes: Vec<_> = conflict
+        .into_iter()
+        .map(|(_, node)| match node {
+            DiffNode::ModifiedText(changeset) => changeset.0,
+            _ => unreachable!(),
+        })
+        .collect();
+    // We do some kind of "transpose" for this vec, since we want to go from per-file to per-line interpretation.
+    debug_assert!(changes.iter().map(Vec::len).collect::<HashSet<_>>().len() == 1);
+    let mut line_changes = vec![vec![]; changes[0].len()];
+    for change in changes {
+        line_changes
+            .iter_mut()
+            .zip(change)
+            .for_each(|(v, change)| v.push(change));
+    }
+    let line_changes: Vec<Option<Vec<_>>> = line_changes
+        .into_iter()
+        .map(|v| {
+            debug_assert!(v.iter().all(Option::is_some) || v.iter().all(Option::is_none));
+            v.into_iter().collect()
+        })
+        .collect();
+
+    let changes = line_changes
+        .into_iter()
+        .enumerate()
+        .map(|(index, change)| {
+            change.map(|change| {
+                let options = change.into_iter().map(|change| match change {
+                    LineChange::Removed => "".into(),
+                    LineChange::Modified(modification) => {
+                        if modification.added.len() > 0 {
+                            unimplemented!(); // FIXME - handle this condition gracefully
+                        }
+                        match modification.replacement {
+                            Some(line) => line,
+                            None => unimplemented!(), // FIXME - the same
+                        }
+                    }
+                });
+                match choose_line(sink, index, &target, options) {
+                    Some(line) => LineChange::Modified(LineModification {
+                        replacement: Some(line),
+                        added: vec![],
+                    }),
+                    None => LineChange::Removed,
+                }
+            })
+        })
+        .collect();
+    LinesChangeset(changes)
+}
+
 fn resolve_modified_text(
     sink: &mut cursive::CbSink,
     target: PathBuf,
     conflict: Conflict,
 ) -> LinesChangeset {
-    let variants = conflict.into_iter().map(|(name, node)| match node {
-        DiffNode::ModifiedText(changeset) => (name, changeset),
-        _ => unreachable!(),
-    });
-    ask_for_resolve(
+    // Clone conflict, to use it later in manual resolution if necessary
+    let variants = conflict
+        .clone()
+        .into_iter()
+        .map(|(name, node)| match node {
+            DiffNode::ModifiedText(changeset) => (name, Some(changeset)),
+            _ => unreachable!(),
+        })
+        .chain(std::iter::once(("Resolve manually".into(), None)));
+    let changeset = ask_for_resolve(
         sink,
         format!(
             "Multiple mods are modifying the text file {}. Please choose one you wish to use",
             target.to_string_lossy()
         ),
         variants,
-    )
+    );
+    match changeset {
+        Some(changeset) => changeset,
+        None => resolve_changes_manually(sink, target, conflict),
+    }
 }
 
 fn resolve_added_text(
