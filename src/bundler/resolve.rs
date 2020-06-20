@@ -4,8 +4,8 @@ use super::diff::{
 };
 use crossbeam_channel::bounded;
 use cursive::{
-    traits::{Nameable, Boxable},
-    views::{Dialog, EditView},
+    traits::{Nameable, Resizable},
+    views::{Dialog, TextArea},
 };
 use std::fmt::Debug;
 use std::{collections::HashSet, path::PathBuf};
@@ -105,7 +105,7 @@ fn render_line_choice(line: String) -> impl cursive::View {
         .child(cursive::views::TextView::new(line.clone()).full_width())
         .child(cursive::views::Button::new("Use this", move |cursive| {
             let line = line.clone();
-            cursive.call_on_name("Line resolve edit", move |edit: &mut EditView| {
+            cursive.call_on_name("Line resolve edit", move |edit: &mut TextArea| {
                 edit.set_content(line)
             });
         }))
@@ -123,15 +123,27 @@ fn choose_line(
 
     crate::run_update(sink, move |cursive| {
         let mut layout = cursive::views::LinearLayout::vertical();
-        lines.into_iter().for_each(|line| layout.add_child(render_line_choice(line)));
+        lines
+            .into_iter()
+            .for_each(|line| layout.add_child(render_line_choice(line)));
         crate::push_screen(
             cursive,
             Dialog::around(
-                layout.child(EditView::new().with_name("Line resolve edit").full_width())
-            ).title(format!("Resolving line {} in file {}", index, file.to_string_lossy())).button("Resolve", move |cursive| {
-                let value = cursive.call_on_name("Line resolve edit", |edit: &mut EditView| edit.get_content()).unwrap();
+                layout.child(TextArea::new().with_name("Line resolve edit").full_width()),
+            )
+            .title(format!(
+                "Resolving line {} in file {}",
+                index,
+                file.to_string_lossy()
+            ))
+            .button("Resolve", move |cursive| {
+                let value = cursive
+                    .call_on_name("Line resolve edit", |edit: &mut TextArea| {
+                        edit.get_content().to_owned()
+                    })
+                    .unwrap();
                 cursive.pop_layer();
-                let value = match &*value.as_str() {
+                let value = match value.as_str() {
                     "" => None,
                     val => Some(val.to_string()),
                 };
@@ -165,39 +177,33 @@ fn resolve_changes_manually(
             .zip(change)
             .for_each(|(v, change)| v.push(change));
     }
-    let line_changes: Vec<Option<Vec<_>>> = line_changes
+    let line_changes: Vec<Vec<_>> = line_changes
         .into_iter()
-        .map(|v| {
-            debug_assert!(v.iter().all(Option::is_some) || v.iter().all(Option::is_none));
-            v.into_iter().collect()
-        })
+        .map(|v| v.into_iter().filter_map(|v| v).collect())
         .collect();
 
     let changes = line_changes
         .into_iter()
         .enumerate()
         .map(|(index, change)| {
-            change.map(|change| {
+            if change.is_empty() {
+                None
+            } else {
                 let options = change.into_iter().map(|change| match change {
                     LineChange::Removed => "".into(),
                     LineChange::Modified(modification) => {
-                        if modification.added.len() > 0 {
-                            unimplemented!(); // FIXME - handle this condition gracefully
-                        }
-                        match modification.replacement {
-                            Some(line) => line,
-                            None => unimplemented!(), // FIXME - the same
+                        match modification {
+                            LineModification::Replaced(repl) => repl,
+                            // FIXME - how this should be handled more gracefully?
+                            LineModification::Added(_) => unimplemented!(),
                         }
                     }
                 });
-                match choose_line(sink, index, &target, options) {
-                    Some(line) => LineChange::Modified(LineModification {
-                        replacement: Some(line),
-                        added: vec![],
-                    }),
+                Some(match choose_line(sink, index, &target, options) {
+                    Some(line) => LineChange::Modified(LineModification::Replaced(line)),
                     None => LineChange::Removed,
-                }
-            })
+                })
+            }
         })
         .collect();
     LinesChangeset(changes)

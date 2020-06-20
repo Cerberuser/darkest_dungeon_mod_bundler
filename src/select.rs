@@ -3,7 +3,7 @@ use cursive::{
     traits::{Finder, Nameable, Resizable, Scrollable},
     view::ViewWrapper,
     views::{Dialog, LinearLayout, Panel, SelectView},
-    Cursive, View, Vec2,
+    Cursive, Vec2, View,
 };
 
 struct Half<V: View>(V);
@@ -38,10 +38,7 @@ pub fn render_lists(cursive: &mut Cursive) {
         .on_submit(do_select)
         .with_name("Available")
         .scrollable();
-    available
-        .get_inner_mut()
-        .get_mut()
-        .sort_by_label();
+    available.get_inner_mut().get_mut().sort_by_label();
     let selected = SelectView::<Mod>::new()
         .on_submit(do_deselect)
         .with_name("Selected")
@@ -74,8 +71,13 @@ fn do_select(cursive: &mut Cursive, item: &Mod) {
             let idx = list
                 .iter()
                 .position(|(_, the_mod)| the_mod.path == item.path);
-            let cb = idx.map(|idx| list.remove_item(idx));
-            list.select_down(1);
+            let cb = idx.map(|idx| {
+                let cb = list.remove_item(idx);
+                if idx > 0 {
+                    list.select_down(1);
+                };
+                cb
+            });
             cb
         });
         dialog.call_on_name("Selected", |list: &mut SelectView<Mod>| {
@@ -103,9 +105,14 @@ fn do_deselect(cursive: &mut Cursive, item: &Mod) {
             let idx = list
                 .iter()
                 .position(|(_, the_mod)| the_mod.path == item.path);
-                let cb = idx.map(|idx| list.remove_item(idx));
-                list.select_down(1);
+            let cb = idx.map(|idx| {
+                let cb = list.remove_item(idx);
+                if idx > 0 {
+                    list.select_down(1);
+                };
                 cb
+            });
+            cb
         });
         cb
     });

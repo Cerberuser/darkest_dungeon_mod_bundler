@@ -1,5 +1,4 @@
 mod diff;
-mod deploy;
 mod resolve;
 
 use cursive::{
@@ -7,7 +6,7 @@ use cursive::{
     views::{Dialog, LinearLayout, TextView},
     Cursive,
 };
-use diff::{DataNode, DataTree, DataTreeExt, ModContent, ResultDiffTressExt};
+use diff::{DataNode, DataTree, DataTreeExt, ModContent, ResultDiffTressExt, DiffTreeExt, DataNodeContent};
 use log::*;
 use std::{
     fs::read_dir,
@@ -30,14 +29,34 @@ pub fn bundle(cursive: &mut Cursive) {
     );
 
     let on_file_read = cursive.cb_sink().clone();
+    let mut on_error = on_file_read.clone();
     std::thread::spawn(move || {
-        let mut on_file_read = on_file_read;
-        if let Err(err) = do_bundle(&mut on_file_read, global_data) {
-            crate::run_update(&mut on_file_read, move |cursive| {
+        let thread = std::thread::spawn(|| {
+            let mut on_file_read = on_file_read;
+            if let Err(err) = do_bundle(&mut on_file_read, global_data) {
+                crate::run_update(&mut on_file_read, move |cursive| {
+                    crate::screen(
+                        cursive,
+                        Dialog::around(TextView::new(format!("{}", err)))
+                            .title("Error building the mod bundle")
+                            .button("Ok", Cursive::quit),
+                    )
+                });
+            };
+        });
+        if let Err(info) = thread.join() {
+            let msg = match info.downcast_ref::<&'static str>() {
+                Some(s) => *s,
+                None => match info.downcast_ref::<String>() {
+                    Some(s) => &s[..],
+                    None => "Box<Any>",
+                },
+            }.to_string();
+            crate::run_update(&mut on_error, move |cursive| {
                 crate::screen(
                     cursive,
-                    Dialog::around(TextView::new(format!("{}", err)))
-                        .title("Error building the mod bundle")
+                    Dialog::around(TextView::new(msg))
+                        .title("Background thread panicked, exiting")
                         .button("Ok", Cursive::quit),
                 )
             });
@@ -68,9 +87,11 @@ fn do_bundle(
                 .unwrap_or("".into())
                 .to_string();
             crate::run_update(on_file_read, |cursive| {
-                cursive.call_on_name("Loading part", |text: &mut TextView| {
-                    text.set_content(dlc_dir_name);
-                }).unwrap();
+                cursive
+                    .call_on_name("Loading part", |text: &mut TextView| {
+                        text.set_content(dlc_dir_name);
+                    })
+                    .unwrap();
             });
             original_data.merge(extract_data(on_file_read, &path, &path, true)?);
         } else {
@@ -94,7 +115,6 @@ fn do_bundle(
     let mods = global_data
         .mods
         .into_iter()
-        .inspect(|the_mod| info!("Loading mod: {:?}", the_mod))
         .filter(|the_mod| the_mod.selected)
         .map(|the_mod| extract_mod(&mut for_mods_extract, the_mod, &original_data));
 
@@ -102,9 +122,38 @@ fn do_bundle(
     let resolved = resolve::resolve(on_file_read, conflicts);
     let merged = resolve::merge_resolved(merged, resolved);
 
+    let modded = merged.apply_to(original_data);
+    deploy(&path, modded)?;
+
     crate::run_update(on_file_read, |cursive| {
-        crate::screen(cursive, Dialog::around(TextView::new("Loaded!")));
+        crate::screen(cursive, Dialog::around(TextView::new("Bundle ready!")));
     });
+    Ok(())
+}
+
+fn deploy(game_path: &Path, bundle: DataTree) -> std::io::Result<()> {
+    let base = game_path.join("mods/generated_bundle");
+
+    let project = crate::Project { title: "Generated mods bundle".into() };
+    let project_xml = std::fs::File::create(base.join("project.xml"))?;
+    match serde_xml_rs::to_writer(project_xml, &project) {
+        Ok(_) => {},
+        Err(serde_xml_rs::Error::Io { source }) => return Err(source),
+        _ => panic!("Unexpected error on writing XML"),
+    };
+
+    for (path, item) in bundle {
+        let (source, content) = item.into_parts();
+        let target = base.join(path);
+        match content {
+            DataNodeContent::Binary => {
+                std::fs::copy(source, target)?;
+            },
+            DataNodeContent::Text(text) => {
+                std::fs::write(target, text)?;
+            }
+        }
+    }
     Ok(())
 }
 
@@ -161,14 +210,12 @@ fn set_file_updated(on_file_read: &mut cursive::CbSink, prefix: String, path: St
         cursive.call_on_name("Loading filename", |text: &mut TextView| {
             let mut path = path;
             let log_path: String = if path.len() < LOG_PATH_LEN {
-                path
-                    .chars()
+                path.chars()
                     .chain(std::iter::repeat(' '))
                     .take(LOG_PATH_LEN)
                     .collect()
             } else {
-                path
-                    .drain(0..(path.len() - (LOG_PATH_LEN - 3)))
+                path.drain(0..(path.len() - (LOG_PATH_LEN - 3)))
                     .for_each(|_| {});
                 format!("...{}", path)
             };
@@ -182,7 +229,6 @@ fn extract_from_file(
     base_path: &Path,
     path: &Path,
 ) -> std::io::Result<(PathBuf, DataNode)> {
-
     let rel_path = path.strip_prefix(base_path).map_err(|_| {
         std::io::Error::new(
             std::io::ErrorKind::InvalidInput,

@@ -20,6 +20,9 @@ impl DataNode {
             content: content.into(),
         }
     }
+    pub fn into_parts(self) -> (PathBuf, DataNodeContent) {
+        (self.absolute, self.content)
+    }
     pub fn into_content(self) -> DataNodeContent {
         self.content
     }
@@ -33,13 +36,13 @@ pub enum DataNodeContent {
 
 impl From<String> for DataNodeContent {
     fn from(content: String) -> Self {
-        Self::Text(content)
+        Self::Text(content.replace("\r\n", "\n"))
     }
 }
 impl From<Option<String>> for DataNodeContent {
     fn from(content: Option<String>) -> Self {
         match content {
-            Some(content) => Self::Text(content),
+            Some(content) => Self::Text(content.replace("\r\n", "\n")),
             None => Self::Binary,
         }
     }
@@ -67,12 +70,16 @@ pub type Conflicts = HashMap<PathBuf, Conflict>;
 pub struct LinesChangeset(pub Vec<Option<LineChange>>);
 impl LinesChangeset {
     fn diff(first: &str, second: &str) -> Self {
-        let mut inner = Vec::with_capacity(first.split("\n").count());
+        let lines_count = first.split("\n").count();
+        let mut inner = Vec::with_capacity(lines_count);
         let mut removed = vec![];
         let mut modification = None;
         for diff in Changeset::new(first, second, "\n").diffs {
             match diff {
                 Difference::Same(lines) => {
+                    if let Some(modification) = modification.take() {
+                        inner.push(Some(LineChange::Modified(modification)));
+                    }
                     inner.extend(removed.drain(..));
                     inner.extend(lines.split("\n").map(|_| None));
                 }
@@ -84,19 +91,20 @@ impl LinesChangeset {
                                 if let Some(modification) = modification.take() {
                                     inner.push(Some(LineChange::Modified(modification)));
                                 }
-                                modification = Some(LineModification {
-                                    replacement: Some(line),
-                                    added: vec![],
-                                });
+                                modification = Some(LineModification::Replaced(line));
                             }
                             None => {
-                                modification
-                                    .get_or_insert(LineModification {
-                                        replacement: None,
-                                        added: vec![],
-                                    })
-                                    .added
-                                    .push(line);
+                                modification = match modification.take() {
+                                    Some(LineModification::Replaced(s)) => Some(LineModification::Replaced(s + "\n" + &line)),
+                                    Some(LineModification::Added(s)) => Some(LineModification::Added(s + "\n" + &line)),
+                                    None => {
+                                        let last = inner.pop();
+                                        // Either the list is empty, or the last line was unchanged
+                                        // (otherwise we'd get into another branch).
+                                        debug_assert!(last.is_none() || last.unwrap().is_none());
+                                        Some(LineModification::Added(line))
+                                    }
+                                }
                             }
                         }
                     }
@@ -117,15 +125,15 @@ impl LinesChangeset {
             inner.push(Some(LineChange::Modified(modification)));
         }
         inner.extend(removed);
-        debug_assert!(inner.len() == inner.capacity());
+        debug_assert!(inner.len() == lines_count);
         Self(inner)
     }
 }
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
-pub struct LineModification {
-    pub replacement: Option<String>,
-    pub added: Vec<String>,
+pub enum LineModification {
+    Replaced(String),
+    Added(String),
 }
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub enum LineChange {
@@ -169,11 +177,14 @@ impl DataTreeExt for DataTree {
                 Some(orig) => match (&orig.content, &modded.content) {
                     (Binary, Binary) => DiffNode::Binary(modded.absolute),
                     (Text(orig), Text(modded)) => DiffNode::ModifiedText(LinesChangeset::diff(orig, modded)),
-                    _ => panic!(
+                    _ => {
+                        error!("Unexpected kinds mismatch");
+                        panic!(
                         "Unexpected mismatch: original file {:?} and modded file {:?} have different kinds",
                         orig.absolute,
                         modded.absolute
-                    ),
+                    )
+                },
                 }
                 None => match modded.content {
                     Binary => DiffNode::Binary(modded.absolute),
@@ -285,7 +296,6 @@ pub fn merge(
                     for changes in &list {
                         if let (name, DiffNode::ModifiedText(changelist)) = changes {
                             conflict_changes.insert(name.to_string(), vec![]);
-                            let mut pending_change: Option<LineModification> = None;
                             if line_changes.is_empty() {
                                 line_changes.resize_with(changelist.0.len(), Default::default);
                             }
@@ -293,12 +303,6 @@ pub fn merge(
                                 change.as_ref().map(|change| {
                                     line_changes[index].insert(name.into(), change.clone())
                                 });
-                            }
-                            // The loop has ended - flush the pending change at the end, if any.
-                            if let Some(pending_change) = pending_change.take() {
-                                let index = line_changes.len() - 1;
-                                line_changes[index]
-                                    .insert(name.into(), LineChange::Modified(pending_change));
                             }
                         } else {
                             unreachable!();
@@ -375,7 +379,7 @@ pub fn merge(
 }
 
 pub trait DiffTreeExt: Sized {
-    fn apply_to(self, original: DataTree) -> DataTree;
+    fn apply_to(self, _: DataTree) -> DataTree;
 }
 impl DiffTreeExt for DiffTree {
     fn apply_to(self, original: DataTree) -> DataTree {
@@ -383,8 +387,22 @@ impl DiffTreeExt for DiffTree {
             .map(|(path, changes)| match changes {
                 DiffNode::Binary(source) => (path, DataNode::new(source, None)),
                 DiffNode::AddedText(text) => (path, DataNode::new("", text)),
-                DiffNode::ModifiedText(_) => {
-                    todo!();
+                DiffNode::ModifiedText(changeset) => {
+                    let orig = match &original.get(&path).unwrap().content {
+                        DataNodeContent::Binary => unreachable!(),
+                        DataNodeContent::Text(text) => text,
+                    };
+                    let text = orig.lines().zip(changeset.0).filter_map(|(orig, change)| match change {
+                        Some(change) => match change {
+                            LineChange::Removed => None,
+                            LineChange::Modified(change) => match change {
+                                LineModification::Replaced(text) => Some(text),
+                                LineModification::Added(text) => Some(format!("{}\n{}", orig, text)),
+                            }
+                        },
+                        None => Some(orig.into()),
+                    }).collect::<Vec<_>>().join("\n");
+                    (path, DataNode::new("", text))
                 }
             })
             .collect()

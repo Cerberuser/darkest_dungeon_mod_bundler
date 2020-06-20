@@ -172,7 +172,6 @@ name = "darkest_mod_bundler"
 version = "0.1.0"
 dependencies = [
  "crossbeam-channel",
- "crossterm",
  "cursive",
  "difference",
  "log",

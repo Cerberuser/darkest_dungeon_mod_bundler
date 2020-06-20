@@ -8,11 +8,10 @@ use cursive::{
     views::{EditView, PaddedView},
     Cursive, View,
 };
-use serde::Deserialize;
-use std::{io::Write, path::PathBuf};
-use crossterm::{terminal::SetTitle, QueueableCommand};
+use serde::{Serialize, Deserialize};
+use std::path::PathBuf;
 
-#[derive(Deserialize, Default, Debug, Clone)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
 struct Project {
     #[serde(rename = "Title")]
     title: String,
@@ -78,11 +77,6 @@ fn run_update<F: FnOnce(&mut Cursive) + 'static + Send>(sink: &mut cursive::CbSi
     sink.send(Box::new(cb)).expect("Cursive sink was unexpectedly dropped, this is probably a bug");
 }
 
-fn setup_term() -> crossterm::Result<()> {
-    std::io::stdout().queue(SetTitle("Darkest Dungeon Mods Bundler"))?.flush()?;
-    Ok(())
-}
-
 pub fn run() {
     let mut cursive: Cursive = cursive::default();
 
@@ -102,17 +96,6 @@ pub fn run() {
         .full_width();
 
     screen(&mut cursive, dialog);
-    
-    let sink = cursive.cb_sink().clone();
-    std::panic::set_hook(Box::new(move |panic_info| {
-        let mut sink = sink.clone();
-        log::error!("{:?}", panic_info);
-        crate::run_update(&mut sink, |cursive| cursive.quit());
-    }));
-
-    cursive.step();
-    if let Err(e) = setup_term() {
-        log::warn!("Failed to properly setup terminal: {}. The application will still work", e);
-    }
     cursive.run();
+    log::info!("Cursive successfully stopped");
 }
