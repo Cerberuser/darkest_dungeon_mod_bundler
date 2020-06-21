@@ -4,6 +4,7 @@ use super::diff::{
 };
 use crossbeam_channel::bounded;
 use cursive::{
+    align::HAlign,
     traits::{Nameable, Resizable},
     views::{Dialog, TextArea},
 };
@@ -15,11 +16,11 @@ pub fn resolve(sink: &mut cursive::CbSink, conflicts: Conflicts) -> DiffTree {
     conflicts
         .into_iter()
         .map(|(path, conflict)| {
-            debug!("[resolve] {:?}: Resolving conflict", path);
+            info!("[resolve] {:?}: Resolving conflict", path);
             let kind = conflict[0].1.kind();
             match kind {
                 DiffNodeKind::AddedText => {
-                    debug!("[resolve] {:?}: Multiple added texts", path);
+                    info!("[resolve] {:?}: Multiple added texts", path);
                     let (base, changes) = resolve_added_text(sink, path.clone(), conflict);
                     // Here, we have to do a little differently, since we're essentially resolving conflict
                     // by applying two actions, but have to make them as one.
@@ -35,13 +36,13 @@ pub fn resolve(sink: &mut cursive::CbSink, conflicts: Conflicts) -> DiffTree {
                     }
                 }
                 DiffNodeKind::Binary => {
-                    debug!("[resolve] {:?}: Multiple binaries", path);
+                    info!("[resolve] {:?}: Multiple binaries", path);
                     let resolved = resolve_binary(sink, path.clone(), conflict);
-                    trace!("[resolve] {:?}: Using {:?}", path, resolved);
+                    debug!("[resolve] {:?}: Using {:?}", path, resolved);
                     (path, DiffNode::Binary(resolved))
                 }
                 DiffNodeKind::ModifiedText => {
-                    debug!("[resolve] {:?}: Multiple text modifications", path);
+                    info!("[resolve] {:?}: Multiple text modifications", path);
                     let resolved = resolve_modified_text(sink, path.clone(), conflict);
                     (path, DiffNode::ModifiedText(resolved))
                 }
@@ -69,7 +70,7 @@ fn ask_for_resolve<T: Debug + Send + Clone + 'static>(
     let (sender, receiver) = bounded(0);
     let text = text.into();
     let options: Vec<_> = options.into_iter().collect();
-    trace!(
+    debug!(
         "[resolve]: Asking for source to be used, variants: {:?}",
         options.iter().map(|(name, _)| name).collect::<Vec<_>>()
     );
@@ -122,6 +123,7 @@ fn render_line_choice(line: String, mod_name: String) -> impl cursive::View {
             })),
     )
     .title(mod_name)
+    .title_position(HAlign::Left)
 }
 
 fn choose_line(
@@ -285,7 +287,7 @@ fn resolve_added_text(
     let choice = ask_for_resolve(
         sink,
         format!(
-            "Multiple mods are modifying the text file {}. Please choose one you wish to use",
+            "Multiple mods are adding the text file {}. Please choose one you wish to use as base for others",
             target.to_string_lossy()
         ),
         variants,

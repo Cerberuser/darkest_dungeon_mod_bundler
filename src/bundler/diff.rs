@@ -76,7 +76,7 @@ pub struct LinesChangeset(pub Vec<Option<LineChange>>);
 impl LinesChangeset {
     fn diff(first: &str, second: &str) -> Self {
         let lines_count = first.split('\n').count();
-        debug!("Diff: {} lines in original file", lines_count);
+        info!("Diff: {} lines in original file", lines_count);
         let mut inner = Vec::with_capacity(lines_count);
         let mut removed = vec![];
         let mut modification: Option<LineModification> = None;
@@ -84,31 +84,31 @@ impl LinesChangeset {
             match diff {
                 Difference::Same(lines) => {
                     let unchanged = lines.split('\n').map(|_| None).collect::<Vec<_>>();
-                    trace!(
+                    debug!(
                         "Found unchanged block of lines, length = {}",
                         unchanged.len()
                     );
                     if let Some(modification) = modification.take() {
-                        trace!(
+                        debug!(
                             "Pushed pending modification: {}, lines: {}",
                             modification.kind(),
                             modification.lines()
                         );
                         inner.push(Some(LineChange::Modified(modification)));
                     }
-                    trace!("Pushed pending removals, length = {}", removed.len());
+                    debug!("Pushed pending removals, length = {}", removed.len());
                     inner.extend(removed.drain(..));
                     inner.extend(unchanged);
                 }
                 Difference::Add(lines) => {
                     let added: Vec<String> = lines.split('\n').map(String::from).collect();
-                    trace!("Got added block of lines, length = {}", added.len());
+                    debug!("Got added block of lines, length = {}", added.len());
                     for line in added {
                         match removed.pop() {
                             Some(_) => {
-                                trace!("Found replacement for the previously deleted line");
+                                debug!("Found replacement for the previously deleted line");
                                 if let Some(modification) = modification.take() {
-                                    trace!(
+                                    debug!(
                                         "Pushed pending modification: {}, lines: {}",
                                         modification.kind(),
                                         modification.lines()
@@ -120,11 +120,11 @@ impl LinesChangeset {
                             None => {
                                 modification = match modification.take() {
                                     Some(LineModification::Replaced(s)) => {
-                                        trace!("Line is added to the existing replacement block");
+                                        debug!("Line is added to the existing replacement block");
                                         Some(LineModification::Replaced(s + "\n" + &line))
                                     }
                                     Some(LineModification::Added(s)) => {
-                                        trace!("Line is added to the existing addition block");
+                                        debug!("Line is added to the existing addition block");
                                         Some(LineModification::Added(s + "\n" + &line))
                                     }
                                     None => {
@@ -132,11 +132,11 @@ impl LinesChangeset {
                                         // (otherwise we'd get into another branch).
                                         match inner.pop() {
                                             Some(Some(_)) => debug_assert!(false, "Logic error in diff: new addition is generated with last line already changed"),
-                                            Some(None) => trace!("Attaching addition to the already changed line"),
+                                            Some(None) => debug!("Attaching addition to the already changed line"),
                                             // FIXME: this moves the change one line below
-                                            None => trace!("Adding line after the first line of the file"),
+                                            None => debug!("Adding line after the first line of the file"),
                                         }
-                                        trace!("Attaching the addition to the previous line");
+                                        debug!("Attaching the addition to the previous line");
                                         Some(LineModification::Added(line))
                                     }
                                 }
@@ -149,33 +149,33 @@ impl LinesChangeset {
                         .split('\n')
                         .map(|_| Some(LineChange::Removed))
                         .collect::<Vec<_>>();
-                    trace!("Got a removed block, length = {}", pending_removed.len());
+                    debug!("Got a removed block, length = {}", pending_removed.len());
                     if let Some(modification) = modification.take() {
-                        trace!(
+                        debug!(
                             "Pushed pending modification: {}, lines: {}",
                             modification.kind(),
                             modification.lines()
                         );
                         inner.push(Some(LineChange::Modified(modification)));
                     }
-                    trace!("Pushed pending removals, length = {}", removed.len());
+                    debug!("Pushed pending removals, length = {}", removed.len());
                     inner.extend(removed);
                     removed = pending_removed;
                 }
             }
         }
         if let Some(modification) = modification {
-            trace!(
+            debug!(
                 "Pushed pending modification: {}, lines: {}",
                 modification.kind(),
                 modification.lines()
             );
             inner.push(Some(LineChange::Modified(modification)));
         }
-        trace!("Pushed pending removals, length = {}", removed.len());
+        debug!("Pushed pending removals, length = {}", removed.len());
         inner.extend(removed);
         debug_assert!(inner.len() == lines_count);
-        debug!("Calculated patches for every line");
+        info!("Calculated patches for every line");
         Self(inner)
     }
 }
@@ -236,17 +236,17 @@ impl DataTreeExt for DataTree {
     fn diff(&self, other: DataTree) -> DiffTree {
         use DataNodeContent::*;
         other.into_iter().map(|(path, modded)| {
-            debug!("Comparing data on path {:?}", path);
+            info!("Comparing data on path {:?}", path);
             let value = match self.get(&path) {
                 Some(orig) => {
-                    debug!("Mod is overwriting existing file {:?}", path);
+                    info!("Mod is overwriting existing file {:?}", path);
                     match (&orig.content, &modded.content) {
                         (Binary, Binary) => {
-                            debug!("{:?} is a binary file - skipping diff", path);
+                            info!("{:?} is a binary file - skipping diff", path);
                             DiffNode::Binary(modded.absolute)
                         }
                         (Text(orig), Text(modded)) => {
-                            debug!("{:?} is a text file - calculating diff", path);
+                            info!("{:?} is a text file - calculating diff", path);
                             DiffNode::ModifiedText(LinesChangeset::diff(orig, modded))
                         }
                         _ => {
@@ -259,7 +259,7 @@ impl DataTreeExt for DataTree {
                     }
                 }
                 None => {
-                    debug!("Mod is introducing new file {:?}", path);
+                    info!("Mod is introducing new file {:?}", path);
                     match modded.content {
                         Binary => DiffNode::Binary(modded.absolute),
                         Text(modded) => DiffNode::AddedText(modded),
@@ -290,11 +290,11 @@ impl<I> DiffTreesExt for I where I: Iterator<Item = ModContent> + Sized {}
 type UsagesMap = HashMap<PathBuf, Vec<Rc<RefCell<ModContent>>>>;
 
 fn add_usage(usages: &mut UsagesMap, diff: ModContent) {
-    debug!("Filling the list of files touched by mod: {}", diff.name);
+    info!("Filling the list of files touched by mod: {}", diff.name);
     let diff = Rc::new(RefCell::new(diff));
     let borrowed = diff.borrow();
     for path in borrowed.diff.keys() {
-        trace!("Mod {}, file {:?}", borrowed.name, path);
+        debug!("Mod {}, file {:?}", borrowed.name, path);
         // False positive from clippy - https://github.com/rust-lang/rust-clippy/issues/5693
         #[allow(clippy::or_fun_call)]
         usages
@@ -346,7 +346,7 @@ fn merge(
     // Now, we'll iterate over files.
     for (path, mut mods) in usages {
         let string_path = path.to_string_lossy().to_string();
-        debug!("[merge] {:?}: merging changes", path);
+        info!("[merge] {:?}: merging changes", path);
         if let Some(sink) = on_progress.as_mut() {
             super::set_file_updated(sink, "Merging".into(), string_path)
         }
@@ -363,7 +363,7 @@ fn merge(
         else if mods.len() == 1 {
             // We can remove entry from DiffTree, since it won't be ever touched later.
             let the_mod = mods.remove(0);
-            debug!(
+            info!(
                 "[merge] {:?}: no conflicts - file is changed only by mod {}",
                 path,
                 the_mod.borrow().name
@@ -381,7 +381,7 @@ fn merge(
                     (item.name.clone(), item.diff.remove(&path).unwrap())
                 })
                 .collect::<Vec<_>>();
-            debug!(
+            info!(
                 "[merge] {:?}: multiple mods are changing file: {:?}",
                 path,
                 list.iter().map(|(name, _)| name).collect::<Vec<_>>()
@@ -392,7 +392,7 @@ fn merge(
                 // and then we'll run the diffing again, with "base" being the "vanilla" and all others being "mods".
                 // So, they are directly put into "conflicts", like the binaries.
                 kind @ DiffNodeKind::Binary | kind @ DiffNodeKind::AddedText => {
-                    trace!(
+                    debug!(
                         "[merge] {:?}: Diff is of kind {:?} - putting it to conflicts directly",
                         path,
                         kind
@@ -401,7 +401,7 @@ fn merge(
                 }
                 // Now that's getting tricky.
                 DiffNodeKind::ModifiedText => {
-                    trace!("[merge] {:?}: Diff is modifying existing text - trying to merge line-by-line", path);
+                    debug!("[merge] {:?}: Diff is modifying existing text - trying to merge line-by-line", path);
                     // We will treat as conflict any case when two mods modify the same line.
                     // And we want to merge all non-conflicting cases.
                     // So, we iterate over every changeset, to check which lines are
@@ -416,7 +416,7 @@ fn merge(
                             }
                             for (index, change) in changelist.0.iter().enumerate() {
                                 change.as_ref().map(|change| {
-                                    trace!(
+                                    debug!(
                                         "[merge] {:?}: Mod {} changes line {}",
                                         path,
                                         name,
@@ -442,7 +442,7 @@ fn merge(
                         // Good case - change from exactly one mod.
                         else if line_change.len() == 1 {
                             let (name, change) = line_change.into_iter().next().unwrap();
-                            trace!(
+                            debug!(
                                 "[merge] {:?}: Exactly one change for line {}, mod = {}",
                                 path,
                                 index,
@@ -460,7 +460,7 @@ fn merge(
                             if set.len() == 1 {
                                 // All changes are equal - no problem!
                                 let (_, change) = line_change.into_iter().next().unwrap();
-                                trace!(
+                                debug!(
                                     "[merge] {:?}: Multiple equal changes for line {}",
                                     path,
                                     index
@@ -475,7 +475,7 @@ fn merge(
                             // First of all, push "unchanged" marker to the merges list.
                             merged_changes.push(None);
                             // Now, let's operate on "conflicts".
-                            trace!(
+                            debug!(
                                 "[merge] {:?}: Conflicting changes for line {}, mods: {:?}",
                                 path,
                                 index,
@@ -490,7 +490,7 @@ fn merge(
                     }
                     // Woof! Finally, we can put the results into the output maps.
                     if !merged_changes.iter().all(Option::is_none) {
-                        debug!("[merge] {:?}: outputting merged changes", path);
+                        info!("[merge] {:?}: outputting merged changes", path);
                         merged.insert(
                             path.clone(),
                             DiffNode::ModifiedText(LinesChangeset(merged_changes)),
@@ -498,11 +498,11 @@ fn merge(
                     }
                     conflict_changes.retain(|_, list| !list.iter().all(Option::is_none));
                     if !conflict_changes.is_empty() {
-                        debug!("[merge] {:?}: outputting conflicts", path);
+                        info!("[merge] {:?}: outputting conflicts", path);
                         let conflict_changes = conflict_changes
                             .into_iter()
                             .map(|(key, list)| {
-                                trace!("[merge] {:?}: conflicting changes from mod {}", path, key);
+                                debug!("[merge] {:?}: conflicting changes from mod {}", path, key);
                                 (key, DiffNode::ModifiedText(LinesChangeset(list)))
                             })
                             .collect();
@@ -521,19 +521,19 @@ pub trait DiffTreeExt: Sized {
 }
 impl DiffTreeExt for DiffTree {
     fn apply_to(self, original: DataTree) -> DataTree {
-        debug!("Applying calculated diff to the source tree");
+        info!("Applying calculated diff to the source tree");
         self.into_iter()
             .map(|(path, changes)| match changes {
                 DiffNode::Binary(source) => {
-                    trace!("[apply] {:?}: added binary file from {:?}", path, source);
+                    debug!("[apply] {:?}: added binary file from {:?}", path, source);
                     (path, DataNode::new(source, None))
                 },
                 DiffNode::AddedText(text) => {
-                    trace!("[apply] {:?}: added text", path);
+                    debug!("[apply] {:?}: added text", path);
                     (path, DataNode::new("", text))
                 },
                 DiffNode::ModifiedText(changeset) => {
-                    trace!("[apply] {:?}: modified text", path);
+                    debug!("[apply] {:?}: modified text", path);
                     let orig = match &original.get(&path).unwrap().content {
                         DataNodeContent::Binary => unreachable!(),
                         DataNodeContent::Text(text) => text,
@@ -545,16 +545,16 @@ impl DiffTreeExt for DiffTree {
                         .filter_map(|(index, (orig, change))| match change {
                             Some(change) => match change {
                                 LineChange::Removed => {
-                                    trace!("[apply] {:?}: Removing line {}", path, index);
+                                    debug!("[apply] {:?}: Removing line {}", path, index);
                                     None
                                 }
                                 LineChange::Modified(change) => match change {
                                     LineModification::Replaced(text) => {
-                                        trace!("[apply] {:?}: Replacing line {} with {} new lines", path, index, text.lines().count());
+                                        debug!("[apply] {:?}: Replacing line {} with {} new lines", path, index, text.lines().count());
                                         Some(text)
                                     },
                                     LineModification::Added(text) => {
-                                        trace!("[apply] {:?}: Adding {} new lines after line {}", path, text.lines().count(), index);
+                                        debug!("[apply] {:?}: Adding {} new lines after line {}", path, text.lines().count(), index);
                                         Some(format!("{}\n{}", orig, text))
                                     }
                                 },

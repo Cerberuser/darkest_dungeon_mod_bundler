@@ -51,7 +51,7 @@ pub fn render_lists(cursive: &mut Cursive) {
         .with_name("Selected")
         .scrollable();
 
-    debug!("Rendering lists of available and selected mods for the first time");
+    info!("Rendering lists of available and selected mods for the first time");
     crate::screen(
         cursive,
         Dialog::new()

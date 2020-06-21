@@ -23,7 +23,7 @@ fn error(cursive: &mut Cursive, mut err: &(dyn Error + 'static)) {
     let desc = err.to_string();
     error!("Error encountered: {}", desc);
     while let Some(source) = err.source() {
-        debug!("Caused by:\n  {}", source);
+        info!("Caused by:\n  {}", source);
         err = source;
     }
     screen(
@@ -42,7 +42,7 @@ fn run_update<F: FnOnce(&mut Cursive) + 'static + Send>(sink: &mut cursive::CbSi
 pub fn run() {
     let mut cursive: Cursive = cursive::default();
 
-    debug!("Creating initial dialog");
+    info!("Creating initial dialog");
     let dialog = cursive::views::Dialog::new()
         .content(
             EditView::new()
@@ -52,7 +52,7 @@ pub fn run() {
         )
         .title("Steam library path:")
         .button("List mods", |cursive| {
-            debug!("List mods button click");
+            info!("List mods button click");
             cursive.call_on_name("Library path", |view: &mut EditView| {
                 view.on_event(Event::Key(Key::Enter))
             });
@@ -60,6 +60,6 @@ pub fn run() {
         .full_width();
     screen(&mut cursive, dialog);
 
-    debug!("Starting Cursive");
+    info!("Starting Cursive");
     cursive.run();
 }

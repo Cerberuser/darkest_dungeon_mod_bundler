@@ -1,5 +1,7 @@
 mod diff;
+mod error;
 mod resolve;
+mod deploy;
 
 use crate::loader::GlobalData;
 use cursive::{
@@ -10,13 +12,15 @@ use cursive::{
 use diff::{
     DataNode, DataNodeContent, DataTree, DataTreeExt, DiffTreeExt, ModContent, ResultDiffTressExt,
 };
+use error::{DeploymentError, ExtractionError};
 use log::*;
 use std::{
     fs::read_dir,
     path::{Path, PathBuf},
 };
+use thiserror::Error;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 #[error("Background thread panicked, stopping: {0}")]
 struct PanicError(String);
 
@@ -34,21 +38,22 @@ pub fn bundle(cursive: &mut Cursive) {
         .title("Loading vanilla game data...")
         .with_name("Loading dialog"),
     );
-    debug!("Bundling progress dialog shown");
+    info!("Bundling progress dialog shown");
 
     let on_file_read = cursive.cb_sink().clone();
     let mut on_error = on_file_read.clone();
     std::thread::spawn(move || {
-        debug!("Starting background thread");
+        info!("Starting background thread");
         let thread = std::thread::spawn(|| {
             let mut on_file_read = on_file_read;
             if let Err(err) = do_bundle(&mut on_file_read, global_data) {
                 crate::run_update(&mut on_file_read, move |cursive| {
                     crate::error(cursive, &err);
                 });
+                std::thread::yield_now(); // to let cursive run update immediately
             };
         });
-        debug!("Waiting on the background thread");
+        info!("Waiting on the background thread");
         if let Err(panic_info) = thread.join() {
             let msg = match panic_info.downcast_ref::<&'static str>() {
                 Some(s) => *s,
@@ -62,16 +67,19 @@ pub fn bundle(cursive: &mut Cursive) {
                 crate::error(cursive, &PanicError(msg));
             });
         } else {
-            debug!("Background thread exited successfully");
+            info!("Background thread exited successfully");
         }
     });
 }
 
-fn do_bundle(on_file_read: &mut cursive::CbSink, global_data: GlobalData) -> std::io::Result<()> {
+fn do_bundle(
+    on_file_read: &mut cursive::CbSink,
+    global_data: GlobalData,
+) -> Result<(), error::BundlerError> {
     let path = crate::paths::game(&global_data.base_path);
-    debug!("Extracting data from game directory");
+    info!("Extracting data from game directory");
     let mut original_data = extract_data(on_file_read, &path, &path, true)?;
-    debug!("Vanilla game data extracted");
+    info!("Vanilla game data extracted");
 
     crate::run_update(on_file_read, |cursive| {
         cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
@@ -79,11 +87,16 @@ fn do_bundle(on_file_read: &mut cursive::CbSink, global_data: GlobalData) -> std
         });
     });
 
-    debug!("Extracting DLC data");
-    for entry in read_dir(path.join("dlc"))? {
-        let entry = entry?;
-        if entry.metadata()?.is_dir() {
-            let path = entry.path();
+    info!("Extracting DLC data");
+    let dlc_path = path.join("dlc");
+    for entry in read_dir(&dlc_path).map_err(ExtractionError::from_io(&dlc_path))? {
+        let entry = entry.map_err(ExtractionError::from_io(&dlc_path))?;
+        let path = entry.path();
+        if entry
+            .metadata()
+            .map_err(ExtractionError::from_io(&path))?
+            .is_dir()
+        {
             info!("Reading DLC: {:?}", path);
             let dlc_dir_name = path
                 .file_name()
@@ -102,13 +115,10 @@ fn do_bundle(on_file_read: &mut cursive::CbSink, global_data: GlobalData) -> std
             });
             original_data.extend(extract_data(on_file_read, &path, &path, true)?);
         } else {
-            warn!(
-                "Found non-directory item in DLC folder: {}",
-                entry.path().to_string_lossy()
-            );
+            warn!("Found non-directory item in DLC folder: {:?}", path);
         }
     }
-    debug!("DLC data extracted and merged into vanilla game");
+    info!("DLC data extracted and merged into vanilla game");
 
     crate::run_update(on_file_read, |cursive| {
         cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
@@ -119,12 +129,12 @@ fn do_bundle(on_file_read: &mut cursive::CbSink, global_data: GlobalData) -> std
         });
     });
 
-    debug!("Reading selected mods");
+    info!("Reading selected mods");
     let mut for_mods_extract = on_file_read.clone();
     let mods = global_data
         .mods
         .into_iter()
-        .inspect(|the_mod| debug!("Reading mod: {:?}", the_mod))
+        .inspect(|the_mod| info!("Reading mod: {:?}", the_mod))
         .filter(|the_mod| the_mod.selected)
         .map(|the_mod| {
             info!("Extracting data from selected mod: {}", the_mod.name());
@@ -137,10 +147,12 @@ fn do_bundle(on_file_read: &mut cursive::CbSink, global_data: GlobalData) -> std
     let resolved = resolve::resolve(on_file_read, conflicts);
     let merged = resolve::merge_resolved(merged, resolved);
 
-    debug!("Applying patches");
+    info!("Applying patches");
     let modded = merged.apply_to(original_data);
-    debug!("Deploying generated mod to the \"mods\" directory");
-    deploy(&path, modded)?;
+    info!("Deploying generated mod to the \"mods\" directory");
+    
+    let mod_path = path.join("mods/generated_bundle");
+    deploy(&mod_path, modded)?;
 
     crate::run_update(on_file_read, |cursive| {
         crate::screen(cursive, Dialog::around(TextView::new("Bundle ready!")));
@@ -148,12 +160,13 @@ fn do_bundle(on_file_read: &mut cursive::CbSink, global_data: GlobalData) -> std
     Ok(())
 }
 
-fn deploy(game_path: &Path, bundle: DataTree) -> std::io::Result<()> {
-    let base = game_path.join("mods/generated_bundle");
-    info!("Mod is being deployed to {:?}", base);
+fn deploy(mod_path: &Path, bundle: DataTree) -> Result<(), DeploymentError> {
+    info!("Mod is being deployed to {:?}", mod_path);
+    std::fs::create_dir(mod_path).map_err(DeploymentError::from_io(&mod_path))?;
 
+    let project_xml_path = mod_path.join("project.xml");
     std::fs::write(
-        base.join("project.xml"),
+        &project_xml_path,
         indoc::indoc!(
             r#"
             <?xml version="1.0" encoding="utf-8"?>
@@ -162,26 +175,26 @@ fn deploy(game_path: &Path, bundle: DataTree) -> std::io::Result<()> {
             </project>
             "#
         ),
-    )?;
-    debug!("Written project.xml");
+    ).map_err(DeploymentError::from_io(&project_xml_path))?;
+    info!("Written project.xml");
 
     for (path, item) in bundle {
         info!("Writing mod file to relative path {:?}", path);
         let (source, content) = item.into_parts();
-        let target = base.join(path);
+        let target = mod_path.join(path);
         match content {
             DataNodeContent::Binary => {
-                debug!("Copying binary file from {:?}", source);
-                std::fs::copy(source, target)?;
+                info!("Copying binary file from {:?}", source);
+                std::fs::copy(source, &target).map(|_| {})
             }
             DataNodeContent::Text(text) => {
-                debug!(
+                info!(
                     "Writing text file, first 100 chars = \"{}\"",
                     text.chars().take(100).collect::<String>()
                 );
-                std::fs::write(target, text)?;
+                std::fs::write(&target, text)
             }
-        }
+        }.map_err(DeploymentError::from_io(&target))?;
     }
     Ok(())
 }
@@ -190,7 +203,7 @@ fn extract_mod(
     on_file_read: &mut cursive::CbSink,
     the_mod: crate::loader::Mod,
     original_data: &DataTree,
-) -> std::io::Result<ModContent> {
+) -> Result<ModContent, ExtractionError> {
     let title = the_mod.name().to_owned();
     crate::run_update(on_file_read, move |cursive| {
         cursive.call_on_name("Loading part", |text: &mut TextView| {
@@ -198,7 +211,7 @@ fn extract_mod(
         });
     });
     let content = extract_data(on_file_read, &the_mod.path, &the_mod.path, true)?;
-    debug!("Data successfully extracted, calculating patch");
+    info!("Mod {}: Data successfully extracted, calculating patch", the_mod.name());
     Ok(ModContent::new(the_mod.name(), original_data.diff(content)))
 }
 
@@ -207,29 +220,29 @@ fn extract_data(
     base_path: &Path,
     cur_path: &Path,
     root: bool,
-) -> std::io::Result<DataTree> {
+) -> Result<DataTree, ExtractionError> {
     info!("Extracting data from: {:?}", cur_path);
-    let items = read_dir(cur_path)?
+    let items = read_dir(cur_path)
+        .map_err(ExtractionError::from_io(cur_path))?
         .map(|entry| {
             entry.and_then(|entry| {
                 entry.metadata().map(|meta| {
                     let path = entry.path();
-                    debug!("Collecting children: {:?}", path);
                     (path, meta)
                 })
             })
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(ExtractionError::from_io(cur_path))?;
     let items = items
         .into_iter()
         .map(|(item_path, meta)| {
             if meta.is_dir() {
-                debug!("Extracting data from child directory {:?}", item_path);
                 if item_path.file_name().and_then(std::ffi::OsStr::to_str) == Some("dlc") {
                     debug!("Skipping DLC directory");
                     Ok(vec![])
                 } else {
-                    debug!("Descending into child");
+                    debug!("Descending into child directory {:?}", item_path);
                     extract_data(on_file_read, base_path, &item_path, false)
                         .map(|data| data.into_iter().collect())
                 }
@@ -240,6 +253,7 @@ fn extract_data(
             } else {
                 extract_from_file(on_file_read, base_path, &item_path)
                     .map(|(path, data)| vec![(path, data)])
+                    .map_err(ExtractionError::from_io(&item_path))
             }
         })
         .collect::<Result<Vec<Vec<_>>, _>>()?;
@@ -251,10 +265,6 @@ fn set_file_updated(on_file_read: &mut cursive::CbSink, prefix: String, path: St
 
     crate::run_update(on_file_read, move |cursive: &mut Cursive| {
         cursive.call_on_name("Loading filename", |text: &mut TextView| {
-            debug!(
-                "Bundler is reading path {}, setting it in progress window",
-                path
-            );
             let mut path = path;
             let log_path: String = if path.len() < LOG_PATH_LEN {
                 path.chars()
@@ -281,7 +291,7 @@ fn extract_from_file(
     base_path: &Path,
     path: &Path,
 ) -> std::io::Result<(PathBuf, DataNode)> {
-    debug!("Reading file: {:?}", path);
+    info!("Reading file: {:?}", path);
     let rel_path = path.strip_prefix(base_path).map_err(|_| {
         std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
@@ -295,10 +305,10 @@ fn extract_from_file(
     set_file_updated(on_file_read, "Reading".into(), log_path);
 
     let content = match path.extension().and_then(std::ffi::OsStr::to_str) {
-        Some("js") | Some("darkest") | Some("xml") | Some("json") => {
+        Some("js") | Some("darkest") | Some("xml") | Some("json") | Some("txt") => {
             match std::fs::read_to_string(path).map(Some) {
                 Ok(s) => {
-                    info!("Read successful: {:?}", path);
+                    debug!("Read successful: {:?}", path);
                     s.as_ref().map(|s| {
                         debug!(
                             "Total {} lines, {} characters",
@@ -309,7 +319,7 @@ fn extract_from_file(
                     Ok(s)
                 }
                 Err(err) if err.kind() == std::io::ErrorKind::InvalidData => {
-                    info!(
+                    debug!(
                         "Read unsuccessful, non-UTF8 data; asserting that {:?} is a binary file",
                         path
                     );
@@ -318,7 +328,10 @@ fn extract_from_file(
                 err => err,
             }?
         }
-        _ => None,
+        _ => {
+            debug!("File extension is not in white-list (js,json,xml,txt,darkest), loading as binary");
+            None
+        },
     };
     Ok((rel_path.into(), DataNode::new(path, content)))
 }
