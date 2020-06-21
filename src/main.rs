@@ -3,16 +3,13 @@ use simplelog::{ConfigBuilder, WriteLogger};
 use std::fs::File;
 
 fn main() {
-    let loglevel = match std::env::args().next().as_deref() {
-        Some("-vvvv") => LevelFilter::Trace,
-        Some("-vvv") => LevelFilter::Debug,
-        Some("-vv") => LevelFilter::Info,
-        Some("-v") => LevelFilter::Warn,
+    let log_level = match std::env::args().next().as_deref() {
+        Some("--debug") => LevelFilter::Trace,
         _ => LevelFilter::Error,
     };
 
     WriteLogger::init(
-        loglevel,
+        log_level,
         ConfigBuilder::new()
             .add_filter_allow_str("darkest_dungeon_mod_bundler")
             .build(),

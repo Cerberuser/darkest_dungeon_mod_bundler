@@ -43,7 +43,7 @@ enum LoadModsError {
 }
 
 pub fn load_path(cursive: &mut Cursive, base_path: &str) {
-    debug!("Loading Steam library from path: {}", base_path);
+    info!("Loading Steam library from path: {}", base_path);
     let base_path = base_path.into();
     let path = crate::paths::workshop(&base_path);
     let dir = match std::fs::read_dir(path) {
@@ -60,7 +60,7 @@ pub fn load_path(cursive: &mut Cursive, base_path: &str) {
                 let file = std::fs::File::open(path.join("project.xml"))?;
                 match serde_xml_rs::from_reader::<_, Project>(file) {
                     Ok(project) => {
-                        debug!(
+                        info!(
                             "Successfully parsed mod \"{}\" from directory {}",
                             project.title,
                             path.to_string_lossy()

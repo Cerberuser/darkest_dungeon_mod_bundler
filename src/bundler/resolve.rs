@@ -7,6 +7,7 @@ use cursive::{
     traits::{Nameable, Resizable},
     views::{Dialog, TextArea},
 };
+use log::*;
 use std::fmt::Debug;
 use std::{collections::HashSet, path::PathBuf};
 
@@ -14,9 +15,11 @@ pub fn resolve(sink: &mut cursive::CbSink, conflicts: Conflicts) -> DiffTree {
     conflicts
         .into_iter()
         .map(|(path, conflict)| {
+            debug!("[resolve] {:?}: Resolving conflict", path);
             let kind = conflict[0].1.kind();
             match kind {
                 DiffNodeKind::AddedText => {
+                    debug!("[resolve] {:?}: Multiple added texts", path);
                     let (base, changes) = resolve_added_text(sink, path.clone(), conflict);
                     // Here, we have to do a little differently, since we're essentially resolving conflict
                     // by applying two actions, but have to make them as one.
@@ -32,10 +35,13 @@ pub fn resolve(sink: &mut cursive::CbSink, conflicts: Conflicts) -> DiffTree {
                     }
                 }
                 DiffNodeKind::Binary => {
+                    debug!("[resolve] {:?}: Multiple binaries", path);
                     let resolved = resolve_binary(sink, path.clone(), conflict);
+                    trace!("[resolve] {:?}: Using {:?}", path, resolved);
                     (path, DiffNode::Binary(resolved))
                 }
                 DiffNodeKind::ModifiedText => {
+                    debug!("[resolve] {:?}: Multiple text modifications", path);
                     let resolved = resolve_modified_text(sink, path.clone(), conflict);
                     (path, DiffNode::ModifiedText(resolved))
                 }
@@ -63,6 +69,10 @@ fn ask_for_resolve<T: Debug + Send + Clone + 'static>(
     let (sender, receiver) = bounded(0);
     let text = text.into();
     let options: Vec<_> = options.into_iter().collect();
+    trace!(
+        "[resolve]: Asking for source to be used, variants: {:?}",
+        options.iter().map(|(name, _)| name).collect::<Vec<_>>()
+    );
     crate::run_update(sink, move |cursive| {
         crate::push_screen(
             cursive,
@@ -100,22 +110,25 @@ fn resolve_binary(sink: &mut cursive::CbSink, target: PathBuf, conflict: Conflic
     )
 }
 
-fn render_line_choice(line: String) -> impl cursive::View {
-    cursive::views::LinearLayout::horizontal()
-        .child(cursive::views::TextView::new(line.clone()).full_width())
-        .child(cursive::views::Button::new("Use this", move |cursive| {
-            let line = line.clone();
-            cursive.call_on_name("Line resolve edit", move |edit: &mut TextArea| {
-                edit.set_content(line)
-            });
-        }))
+fn render_line_choice(line: String, mod_name: String) -> impl cursive::View {
+    cursive::views::Panel::new(
+        cursive::views::LinearLayout::horizontal()
+            .child(cursive::views::TextView::new(line.clone()).full_width())
+            .child(cursive::views::Button::new("Use this", move |cursive| {
+                let line = line.clone();
+                cursive.call_on_name("Line resolve edit", move |edit: &mut TextArea| {
+                    edit.set_content(line)
+                });
+            })),
+    )
+    .title(mod_name)
 }
 
 fn choose_line(
     sink: &mut cursive::CbSink,
     index: usize,
     file: impl Into<PathBuf>,
-    lines: impl IntoIterator<Item = String>,
+    lines: impl IntoIterator<Item = (String, String)>,
 ) -> Option<String> {
     let lines: Vec<_> = lines.into_iter().collect();
     let file = file.into();
@@ -125,7 +138,7 @@ fn choose_line(
         let mut layout = cursive::views::LinearLayout::vertical();
         lines
             .into_iter()
-            .for_each(|line| layout.add_child(render_line_choice(line)));
+            .for_each(|(name, line)| layout.add_child(render_line_choice(line, name)));
         crate::push_screen(
             cursive,
             Dialog::around(
@@ -148,7 +161,8 @@ fn choose_line(
                     val => Some(val.to_string()),
                 };
                 sender.send(value).unwrap();
-            }),
+            })
+            .h_align(cursive::align::HAlign::Center),
         );
     });
     receiver
@@ -163,23 +177,34 @@ fn resolve_changes_manually(
 ) -> LinesChangeset {
     let changes: Vec<_> = conflict
         .into_iter()
-        .map(|(_, node)| match node {
-            DiffNode::ModifiedText(changeset) => changeset.0,
+        .map(|(name, node)| match node {
+            DiffNode::ModifiedText(changeset) => (name, changeset.0),
             _ => unreachable!(),
         })
         .collect();
     // We do some kind of "transpose" for this vec, since we want to go from per-file to per-line interpretation.
-    debug_assert!(changes.iter().map(Vec::len).collect::<HashSet<_>>().len() == 1);
-    let mut line_changes = vec![vec![]; changes[0].len()];
-    for change in changes {
+    debug_assert!(
+        changes
+            .iter()
+            .map(|(_, v)| v.len())
+            .collect::<HashSet<_>>()
+            .len()
+            == 1
+    );
+    let mut line_changes = vec![vec![]; changes[0].1.len()];
+    for (name, change) in changes {
         line_changes
             .iter_mut()
             .zip(change)
-            .for_each(|(v, change)| v.push(change));
+            .for_each(|(v, change)| v.push((name.clone(), change)));
     }
     let line_changes: Vec<Vec<_>> = line_changes
         .into_iter()
-        .map(|v| v.into_iter().filter_map(|v| v).collect())
+        .map(|v| {
+            v.into_iter()
+                .filter_map(|(name, change)| change.map(|change| (name, change)))
+                .collect()
+        })
         .collect();
 
     let changes = line_changes
@@ -189,15 +214,20 @@ fn resolve_changes_manually(
             if change.is_empty() {
                 None
             } else {
-                let options = change.into_iter().map(|change| match change {
-                    LineChange::Removed => "".into(),
-                    LineChange::Modified(modification) => {
-                        match modification {
-                            LineModification::Replaced(repl) => repl,
-                            // FIXME - how this should be handled more gracefully?
-                            LineModification::Added(_) => unimplemented!(),
-                        }
-                    }
+                let options = change.into_iter().map(|(name, change)| {
+                    (
+                        name,
+                        match change {
+                            LineChange::Removed => "".into(),
+                            LineChange::Modified(modification) => {
+                                match modification {
+                                    LineModification::Replaced(repl) => repl,
+                                    // FIXME - how this should be handled more gracefully?
+                                    LineModification::Added(_) => unimplemented!(),
+                                }
+                            }
+                        },
+                    )
                 });
                 Some(match choose_line(sink, index, &target, options) {
                     Some(line) => LineChange::Modified(LineModification::Replaced(line)),

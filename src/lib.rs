@@ -42,7 +42,7 @@ fn run_update<F: FnOnce(&mut Cursive) + 'static + Send>(sink: &mut cursive::CbSi
 pub fn run() {
     let mut cursive: Cursive = cursive::default();
 
-    trace!("Creating initial dialog");
+    debug!("Creating initial dialog");
     let dialog = cursive::views::Dialog::new()
         .content(
             EditView::new()
@@ -52,7 +52,7 @@ pub fn run() {
         )
         .title("Steam library path:")
         .button("List mods", |cursive| {
-            trace!("List mods button click");
+            debug!("List mods button click");
             cursive.call_on_name("Library path", |view: &mut EditView| {
                 view.on_event(Event::Key(Key::Enter))
             });
@@ -60,6 +60,6 @@ pub fn run() {
         .full_width();
     screen(&mut cursive, dialog);
 
-    trace!("Starting Cursive");
+    debug!("Starting Cursive");
     cursive.run();
 }

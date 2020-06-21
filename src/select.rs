@@ -24,18 +24,24 @@ impl<V: View> ViewWrapper for Half<V> {
         Some(f(&mut self.0))
     }
     fn wrap_required_size(&mut self, req: Vec2) -> Vec2 {
+        debug!(
+            "Half-width view asked for required size with constraints {:?}",
+            req
+        );
         (req.x / 2, req.y).into()
     }
 }
 
 pub fn render_lists(cursive: &mut Cursive) {
     let mut available = SelectView::new()
-        .with_all(
-            mods_list(cursive)
-                .iter()
-                .cloned()
-                .map(|the_mod| (the_mod.name().to_owned(), the_mod)),
-        )
+        .with_all(mods_list(cursive).iter().cloned().map(|the_mod| {
+            info!(
+                "Adding mod {} (dir {}) to \"available\" list",
+                the_mod.name(),
+                the_mod.path.to_string_lossy()
+            );
+            (the_mod.name().to_owned(), the_mod)
+        }))
         .on_submit(do_select)
         .with_name("Available")
         .scrollable();
@@ -45,6 +51,7 @@ pub fn render_lists(cursive: &mut Cursive) {
         .with_name("Selected")
         .scrollable();
 
+    debug!("Rendering lists of available and selected mods for the first time");
     crate::screen(
         cursive,
         Dialog::new()
@@ -62,13 +69,19 @@ pub fn render_lists(cursive: &mut Cursive) {
 }
 
 fn do_select(cursive: &mut Cursive, item: &Mod) {
-    debug!("Selecting mod: {}", item.name());
+    info!("Selecting mod: {}", item.name());
     if let Some(the_mod) = mods_list(cursive)
         .iter_mut()
         .find(|the_mod| the_mod.path == item.path)
     {
         the_mod.selected = true;
+    } else {
+        warn!(
+            "Attempted to select mod {}, but it wasn't found in loaded list",
+            item.name()
+        );
     }
+
     let cb = cursive.call_on_name("Mods selection", |dialog: &mut Dialog| {
         let cb = dialog.call_on_name("Available", |list: &mut SelectView<Mod>| {
             let idx = list
@@ -92,17 +105,25 @@ fn do_select(cursive: &mut Cursive, item: &Mod) {
     // and attempt to use `and_then` would be even more ugly
     if let Some(Some(Some(cb))) = cb {
         cb(cursive);
+    } else {
+        warn!("Failed to select mod - something went wrong!");
     }
 }
 
 fn do_deselect(cursive: &mut Cursive, item: &Mod) {
-    debug!("Deselecting mod: {}", item.name());
+    info!("Deselecting mod: {}", item.name());
     if let Some(the_mod) = mods_list(cursive)
         .iter_mut()
         .find(|the_mod| the_mod.path == item.path)
     {
         the_mod.selected = false;
+    } else {
+        warn!(
+            "Attempted to select mod {}, but it wasn't found in loaded list",
+            item.name()
+        );
     }
+
     let cb = cursive.call_on_name("Mods selection", |dialog: &mut Dialog| {
         dialog.call_on_name("Available", |list: &mut SelectView<Mod>| {
             list.add_item(item.name(), item.clone());
@@ -126,5 +147,7 @@ fn do_deselect(cursive: &mut Cursive, item: &Mod) {
     // and attempt to use `and_then` would be even more ugly
     if let Some(Some(Some(cb))) = cb {
         cb(cursive);
+    } else {
+        warn!("Failed to deselect mod - something went wrong!");
     }
 }
