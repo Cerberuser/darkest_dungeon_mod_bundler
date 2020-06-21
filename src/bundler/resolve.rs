@@ -6,7 +6,7 @@ use crossbeam_channel::bounded;
 use cursive::{
     align::HAlign,
     traits::{Nameable, Resizable},
-    views::{Dialog, TextArea},
+    views::{Dialog, LinearLayout, Panel, SelectView, TextArea, TextView, Button},
 };
 use log::*;
 use std::fmt::Debug;
@@ -78,16 +78,14 @@ fn ask_for_resolve<T: Debug + Send + Clone + 'static>(
         crate::push_screen(
             cursive,
             Dialog::around(
-                cursive::views::LinearLayout::vertical()
-                    .child(cursive::views::TextView::new(text))
-                    .child(
-                        cursive::views::SelectView::new()
-                            .with_all(options)
-                            .on_submit(move |cursive, value| {
-                                cursive.pop_layer();
-                                let _ = sender.send(value.clone());
-                            }),
-                    ),
+                LinearLayout::vertical()
+                    .child(TextView::new(text))
+                    .child(Panel::new(SelectView::new().with_all(options).on_submit(
+                        move |cursive, value| {
+                            cursive.pop_layer();
+                            let _ = sender.send(value.clone());
+                        },
+                    ))),
             ),
         );
     });
@@ -104,7 +102,7 @@ fn resolve_binary(sink: &mut cursive::CbSink, target: PathBuf, conflict: Conflic
     ask_for_resolve(
         sink,
         format!(
-            "Multiple mods are using the binary file {}. Please choose one you wish to use",
+            "Multiple mods are using the binary file {}. Please choose one you wish to use the file from",
             target.to_string_lossy()
         ),
         variants,
@@ -112,10 +110,10 @@ fn resolve_binary(sink: &mut cursive::CbSink, target: PathBuf, conflict: Conflic
 }
 
 fn render_line_choice(line: String, mod_name: String) -> impl cursive::View {
-    cursive::views::Panel::new(
-        cursive::views::LinearLayout::horizontal()
-            .child(cursive::views::TextView::new(line.clone()).full_width())
-            .child(cursive::views::Button::new("Use this", move |cursive| {
+    Panel::new(
+        LinearLayout::horizontal()
+            .child(TextView::new(line.clone()).full_width())
+            .child(Button::new("Use this", move |cursive| {
                 let line = line.clone();
                 cursive.call_on_name("Line resolve edit", move |edit: &mut TextArea| {
                     edit.set_content(line)
@@ -137,7 +135,7 @@ fn choose_line(
     let (sender, receiver) = bounded(0);
 
     crate::run_update(sink, move |cursive| {
-        let mut layout = cursive::views::LinearLayout::vertical();
+        let mut layout = LinearLayout::vertical();
         lines
             .into_iter()
             .for_each(|(name, line)| layout.add_child(render_line_choice(line, name)));
@@ -258,7 +256,10 @@ fn resolve_modified_text(
     let changeset = ask_for_resolve(
         sink,
         format!(
-            "Multiple mods are modifying the text file {}. Please choose one you wish to use",
+            "Multiple mods are changing the text file {}.
+Non-conflicting changes were already merged.
+Please choose the file you wish to use for conflicting cases, or resolve changes to each line manually
+",
             target.to_string_lossy()
         ),
         variants,
@@ -287,7 +288,10 @@ fn resolve_added_text(
     let choice = ask_for_resolve(
         sink,
         format!(
-            "Multiple mods are adding the text file {}. Please choose one you wish to use as base for others",
+            "Multiple mods are adding the text file {}.
+In this case, we treat one of them as if it is a part of vanilla game, and merge others based on it.
+Please choose one you wish to use as basic one.
+",
             target.to_string_lossy()
         ),
         variants,

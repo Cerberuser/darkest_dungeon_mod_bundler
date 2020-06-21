@@ -6,12 +6,12 @@ use difference::{Changeset, Difference};
 use log::*;
 use std::{
     cell::RefCell,
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::PathBuf,
     rc::Rc,
 };
 
-pub type DataTree = HashMap<PathBuf, DataNode>;
+pub type DataTree = BTreeMap<PathBuf, DataNode>;
 
 pub struct DataNode {
     absolute: PathBuf,
@@ -66,7 +66,7 @@ impl ModContent {
     }
 }
 
-pub type DiffTree = HashMap<PathBuf, DiffNode>;
+pub type DiffTree = BTreeMap<PathBuf, DiffNode>;
 // FIXME: this makes it possible for multiple mods with the same name to collide!
 pub type Conflict = Vec<(String, DiffNode)>;
 pub type Conflicts = HashMap<PathBuf, Conflict>;
@@ -345,10 +345,10 @@ fn merge(
 
     // Now, we'll iterate over files.
     for (path, mut mods) in usages {
-        let string_path = path.to_string_lossy().to_string();
+        let string_path = path.to_string_lossy();
         info!("[merge] {:?}: merging changes", path);
         if let Some(sink) = on_progress.as_mut() {
-            super::set_file_updated(sink, "Merging".into(), string_path)
+            super::set_file_updated(sink, "Merging", string_path)
         }
 
         // Sanity check: mods vec shouldn't be empty.

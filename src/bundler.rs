@@ -1,7 +1,7 @@
+mod deploy;
 mod diff;
 mod error;
 mod resolve;
-mod deploy;
 
 use crate::loader::GlobalData;
 use cursive::{
@@ -9,10 +9,8 @@ use cursive::{
     views::{Dialog, LinearLayout, TextView},
     Cursive,
 };
-use diff::{
-    DataNode, DataNodeContent, DataTree, DataTreeExt, DiffTreeExt, ModContent, ResultDiffTressExt,
-};
-use error::{DeploymentError, ExtractionError};
+use diff::{DataNode, DataTree, DataTreeExt, DiffTreeExt, ModContent, ResultDiffTressExt};
+use error::ExtractionError;
 use log::*;
 use std::{
     fs::read_dir,
@@ -149,53 +147,23 @@ fn do_bundle(
 
     info!("Applying patches");
     let modded = merged.apply_to(original_data);
-    info!("Deploying generated mod to the \"mods\" directory");
     
+    crate::run_update(on_file_read, |cursive| {
+        cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
+            dialog.set_title("Deploying...");
+        });
+    });
+    
+    info!("Deploying generated mod to the \"mods\" directory");
     let mod_path = path.join("mods/generated_bundle");
-    deploy(&mod_path, modded)?;
+    deploy::deploy(on_file_read, &mod_path, modded)?;
 
     crate::run_update(on_file_read, |cursive| {
-        crate::screen(cursive, Dialog::around(TextView::new("Bundle ready!")));
+        crate::screen(
+            cursive,
+            Dialog::around(TextView::new("Bundle ready!")).button("OK", Cursive::quit),
+        );
     });
-    Ok(())
-}
-
-fn deploy(mod_path: &Path, bundle: DataTree) -> Result<(), DeploymentError> {
-    info!("Mod is being deployed to {:?}", mod_path);
-    std::fs::create_dir(mod_path).map_err(DeploymentError::from_io(&mod_path))?;
-
-    let project_xml_path = mod_path.join("project.xml");
-    std::fs::write(
-        &project_xml_path,
-        indoc::indoc!(
-            r#"
-            <?xml version="1.0" encoding="utf-8"?>
-            <project>
-                <Title>Generated mods bundle</Title>
-            </project>
-            "#
-        ),
-    ).map_err(DeploymentError::from_io(&project_xml_path))?;
-    info!("Written project.xml");
-
-    for (path, item) in bundle {
-        info!("Writing mod file to relative path {:?}", path);
-        let (source, content) = item.into_parts();
-        let target = mod_path.join(path);
-        match content {
-            DataNodeContent::Binary => {
-                info!("Copying binary file from {:?}", source);
-                std::fs::copy(source, &target).map(|_| {})
-            }
-            DataNodeContent::Text(text) => {
-                info!(
-                    "Writing text file, first 100 chars = \"{}\"",
-                    text.chars().take(100).collect::<String>()
-                );
-                std::fs::write(&target, text)
-            }
-        }.map_err(DeploymentError::from_io(&target))?;
-    }
     Ok(())
 }
 
@@ -211,7 +179,10 @@ fn extract_mod(
         });
     });
     let content = extract_data(on_file_read, &the_mod.path, &the_mod.path, true)?;
-    info!("Mod {}: Data successfully extracted, calculating patch", the_mod.name());
+    info!(
+        "Mod {}: Data successfully extracted, calculating patch",
+        the_mod.name()
+    );
     Ok(ModContent::new(the_mod.name(), original_data.diff(content)))
 }
 
@@ -260,8 +231,11 @@ fn extract_data(
     Ok(items.into_iter().flatten().collect())
 }
 
-fn set_file_updated(on_file_read: &mut cursive::CbSink, prefix: String, path: String) {
+fn set_file_updated(on_file_read: &mut cursive::CbSink, prefix: impl Into<String>, path: impl Into<String>) {
     const LOG_PATH_LEN: usize = 120;
+
+    let prefix = prefix.into();
+    let path = path.into();
 
     crate::run_update(on_file_read, move |cursive: &mut Cursive| {
         cursive.call_on_name("Loading filename", |text: &mut TextView| {
@@ -301,8 +275,8 @@ fn extract_from_file(
             ),
         )
     })?;
-    let log_path = rel_path.to_string_lossy().to_string();
-    set_file_updated(on_file_read, "Reading".into(), log_path);
+    let log_path = rel_path.to_string_lossy();
+    set_file_updated(on_file_read, "Reading", log_path);
 
     let content = match path.extension().and_then(std::ffi::OsStr::to_str) {
         Some("js") | Some("darkest") | Some("xml") | Some("json") | Some("txt") => {
@@ -329,9 +303,11 @@ fn extract_from_file(
             }?
         }
         _ => {
-            debug!("File extension is not in white-list (js,json,xml,txt,darkest), loading as binary");
+            debug!(
+                "File extension is not in white-list (js,json,xml,txt,darkest), loading as binary"
+            );
             None
-        },
+        }
     };
     Ok((rel_path.into(), DataNode::new(path, content)))
 }

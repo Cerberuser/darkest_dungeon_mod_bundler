@@ -25,7 +25,9 @@ impl ExtractionError {
 #[derive(Debug, Error)]
 pub enum DeploymentError {
     #[error("IO error encountered on path {1}")]
-    Io(#[source] std::io::Error, PathBuf)
+    Io(#[source] std::io::Error, PathBuf),
+    #[error("User chose not to overwrite existing directory")]
+    AlreadyExists,
 }
 
 impl DeploymentError {
