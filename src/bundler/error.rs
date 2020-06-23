@@ -1,5 +1,5 @@
-use thiserror::Error;
 use std::path::PathBuf;
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum BundlerError {
@@ -12,7 +12,7 @@ pub enum BundlerError {
 #[derive(Debug, Error)]
 pub enum ExtractionError {
     #[error("IO error encountered on path {1}")]
-    Io(#[source] std::io::Error, PathBuf)
+    Io(#[source] std::io::Error, PathBuf),
 }
 
 impl ExtractionError {

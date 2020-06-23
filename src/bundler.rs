@@ -2,6 +2,7 @@ mod deploy;
 mod diff;
 mod error;
 mod resolve;
+mod structures;
 
 use crate::loader::GlobalData;
 use cursive::{
@@ -147,13 +148,13 @@ fn do_bundle(
 
     info!("Applying patches");
     let modded = merged.apply_to(original_data);
-    
+
     crate::run_update(on_file_read, |cursive| {
         cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
             dialog.set_title("Deploying...");
         });
     });
-    
+
     info!("Deploying generated mod to the \"mods\" directory");
     let mod_path = path.join("mods/generated_bundle");
     deploy::deploy(on_file_read, &mod_path, modded)?;
@@ -231,7 +232,11 @@ fn extract_data(
     Ok(items.into_iter().flatten().collect())
 }
 
-fn set_file_updated(on_file_read: &mut cursive::CbSink, prefix: impl Into<String>, path: impl Into<String>) {
+fn set_file_updated(
+    on_file_read: &mut cursive::CbSink,
+    prefix: impl Into<String>,
+    path: impl Into<String>,
+) {
     const LOG_PATH_LEN: usize = 120;
 
     let prefix = prefix.into();

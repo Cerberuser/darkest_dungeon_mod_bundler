@@ -6,7 +6,7 @@ use crossbeam_channel::bounded;
 use cursive::{
     align::HAlign,
     traits::{Nameable, Resizable},
-    views::{Dialog, LinearLayout, Panel, SelectView, TextArea, TextView, Button},
+    views::{Button, Dialog, LinearLayout, Panel, SelectView, TextArea, TextView},
 };
 use log::*;
 use std::fmt::Debug;

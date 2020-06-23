@@ -67,8 +67,10 @@ pub fn deploy(
         match content {
             DataNodeContent::Binary => {
                 info!("Copying binary file from {:?}", source);
-                let mut source = std::fs::File::open(&source).map_err(DeploymentError::from_io(&source))?;
-                let mut target = std::fs::File::create(&target).map_err(DeploymentError::from_io(&target))?;
+                let mut source =
+                    std::fs::File::open(&source).map_err(DeploymentError::from_io(&source))?;
+                let mut target =
+                    std::fs::File::create(&target).map_err(DeploymentError::from_io(&target))?;
                 std::io::copy(&mut source, &mut target).map(|_| {})
             }
             DataNodeContent::Text(text) => {

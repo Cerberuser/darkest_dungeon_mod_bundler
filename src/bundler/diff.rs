@@ -394,8 +394,7 @@ fn merge(
                 kind @ DiffNodeKind::Binary | kind @ DiffNodeKind::AddedText => {
                     debug!(
                         "[merge] {:?}: Diff is of kind {:?} - putting it to conflicts directly",
-                        path,
-                        kind
+                        path, kind
                     );
                     conflicts.insert(path, list);
                 }
@@ -418,9 +417,7 @@ fn merge(
                                 change.as_ref().map(|change| {
                                     debug!(
                                         "[merge] {:?}: Mod {} changes line {}",
-                                        path,
-                                        name,
-                                        index
+                                        path, name, index
                                     );
                                     line_changes[index].insert(name.into(), change.clone())
                                 });
@@ -444,9 +441,7 @@ fn merge(
                             let (name, change) = line_change.into_iter().next().unwrap();
                             debug!(
                                 "[merge] {:?}: Exactly one change for line {}, mod = {}",
-                                path,
-                                index,
-                                name
+                                path, index, name
                             );
                             merged_changes.push(Some(change));
                             for change in conflict_changes.values_mut() {
@@ -462,8 +457,7 @@ fn merge(
                                 let (_, change) = line_change.into_iter().next().unwrap();
                                 debug!(
                                     "[merge] {:?}: Multiple equal changes for line {}",
-                                    path,
-                                    index
+                                    path, index
                                 );
                                 merged_changes.push(Some(change));
                                 for change in conflict_changes.values_mut() {
