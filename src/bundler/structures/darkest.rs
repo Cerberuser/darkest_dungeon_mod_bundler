@@ -17,6 +17,8 @@ macro_rules! explode {
     };
 }
 
+impl super::MapPath for (String, String) {}
+
 impl BTreeMappable for DarkestFile {
     type Key = (String, String);
     type Value = Vec<String>;
@@ -55,9 +57,9 @@ impl BTreeMappable for DarkestFile {
 mod parser {
     use super::{DarkestEntry, DarkestFile};
     use combine::{
-        choice, eof, look_ahead, many, many1, one_of, optional,
+        choice, eof, many, many1, one_of, optional,
         parser::{
-            char::{alpha_num, char as exact_char, digit, letter, space, string},
+            char::{alpha_num, char as exact_char, digit, letter, space},
             repeat::{skip_many, skip_many1, skip_until, take_until},
         },
         sep_by1, ParseError, ParseResult, Parser, Stream, StreamOnce, not_followed_by,

@@ -4,9 +4,7 @@ mod darkest;
 mod json;
 mod localization;
 
-trait MapPath {}
-impl MapPath for Vec<String> {}
-impl MapPath for (String, String) {}
+trait MapPath: Ord + Eq {}
 
 trait BTreeMappable: Sized {
     type Key: MapPath;
