@@ -4,7 +4,8 @@ use super::{
 };
 use crossbeam_channel::{bounded, Sender};
 use cursive::{
-    views::{Dialog, TextView},
+    traits::{Nameable, Resizable},
+    views::{Dialog, EditView, LinearLayout, Panel, TextView},
     Cursive,
 };
 use indoc::indoc;
@@ -23,13 +24,16 @@ pub fn deploy(
     mod_path: &Path,
     bundle: DataTree,
 ) -> Result<(), DeploymentError> {
+    let (name, dir) = ask_for_props(sink);
+    let mod_path = mod_path.join(dir);
+
     info!("Mod is being deployed to {:?}", mod_path);
     // This is possibly subject for TOCTOU attack, but in this case the user seems to have a problem somewhere else
     if mod_path.exists() {
-        match ask_for_overwrite(sink, mod_path) {
+        match ask_for_overwrite(sink, &mod_path) {
             OverwriteChoice::Overwrite => {
                 info!("Overwriting existing mod bundle");
-                std::fs::remove_dir_all(mod_path).map_err(DeploymentError::from_io(&mod_path))?
+                std::fs::remove_dir_all(&mod_path).map_err(DeploymentError::from_io(&mod_path))?
             }
             OverwriteChoice::Cancel => return Err(DeploymentError::AlreadyExists),
             OverwriteChoice::Retry => {
@@ -40,21 +44,18 @@ pub fn deploy(
         }
     }
 
-    std::fs::create_dir(mod_path).map_err(DeploymentError::from_io(mod_path))?;
+    std::fs::create_dir(&mod_path).map_err(DeploymentError::from_io(&mod_path))?;
 
     let project_xml_path = mod_path.join("project.xml");
-    std::fs::write(
-        &project_xml_path,
-        indoc!(
-            r#"
-            <?xml version="1.0" encoding="utf-8"?>
-            <project>
-                <Title>Generated mods bundle</Title>
-            </project>
-            "#
-        ),
-    )
-    .map_err(DeploymentError::from_io(&project_xml_path))?;
+    let project_xml = format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
+<project>
+    <Title>{}</Title>
+</project>"#,
+        name
+    );
+    std::fs::write(&project_xml_path, project_xml)
+        .map_err(DeploymentError::from_io(&project_xml_path))?;
     info!("Written project.xml");
 
     for (path, item) in bundle {
@@ -84,6 +85,62 @@ pub fn deploy(
         .map_err(DeploymentError::from_io(&target))?;
     }
     Ok(())
+}
+
+fn ask_for_props(sink: &mut cursive::CbSink) -> (String, String) {
+    let (sender, receiver) = bounded(0);
+
+    crate::run_update(sink, move |cursive| {
+        crate::push_screen(
+            cursive,
+            Dialog::around(
+                LinearLayout::vertical()
+                    .child(
+                        Panel::new(
+                            EditView::new()
+                                .on_edit(|cursive, name, _| {
+                                    cursive.call_on_name("Mod directory", |edit: &mut EditView| {
+                                        edit.set_content(name.to_lowercase().replace(' ', "_"));
+                                    });
+                                })
+                                .content("Generated bundle")
+                                .with_name("Mod name")
+                                .full_width(),
+                        )
+                        .title("Mod name"),
+                    )
+                    .child(
+                        Panel::new(
+                            EditView::new()
+                                .content("generated_bundle")
+                                .with_name("Mod directory")
+                                .full_width(),
+                        )
+                        .title("Mod directory"),
+                    ),
+            )
+            .title("Deployment parameters")
+            .button("Clear", |cursive| {
+                let _ =
+                    cursive.call_on_name("Mod name", |view: &mut EditView| view.set_content(""));
+                let _ = cursive
+                    .call_on_name("Mod directory", |view: &mut EditView| view.set_content(""));
+            })
+            .button("Deploy!", move |cursive| {
+                let name = cursive
+                    .call_on_name("Mod name", |view: &mut EditView| view.get_content())
+                    .unwrap();
+                let dir = cursive
+                    .call_on_name("Mod directory", |view: &mut EditView| view.get_content())
+                    .unwrap();
+                sender.send((name.to_string(), dir.to_string())).unwrap();
+            }),
+        )
+    });
+
+    receiver
+        .recv()
+        .expect("Sender was dropped without sending anything")
 }
 
 fn send_choice(sender: &Sender<OverwriteChoice>, choice: OverwriteChoice) -> impl Fn(&mut Cursive) {

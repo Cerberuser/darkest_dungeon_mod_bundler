@@ -156,8 +156,8 @@ fn do_bundle(
     });
 
     info!("Deploying generated mod to the \"mods\" directory");
-    let mod_path = path.join("mods/generated_bundle");
-    deploy::deploy(on_file_read, &mod_path, modded)?;
+    let mods_path = path.join("mods");
+    deploy::deploy(on_file_read, &mods_path, modded)?;
 
     crate::run_update(on_file_read, |cursive| {
         crate::screen(
