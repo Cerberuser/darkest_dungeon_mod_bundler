@@ -40,6 +40,7 @@ game_data_value! {
     Float(f32),
     String(String),
     Next(Option<String>),
+    Unit(()),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

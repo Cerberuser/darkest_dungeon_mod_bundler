@@ -42,6 +42,13 @@ impl BTreeLinkedMappable for Vec<String> {
     }
 }
 
+pub trait BTreeSetable: BTreeLinkedMappable {
+    fn to_set(&self) -> DataMap {
+        self.list().iter().cloned().map(|s| (vec![s], ().into())).collect()
+    }
+}
+impl<T: BTreeLinkedMappable> BTreeSetable for T {}
+
 pub trait BTreeMappable: Sized + Clone {
     fn to_map(&self) -> DataMap;
 }

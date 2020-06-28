@@ -1,4 +1,4 @@
-use crate::bundler::{loader::utils::{ends_with, collect_paths}, game_data::{file_types::{darkest_parser, DarkestEntry}, BTreeMappable, BTreePatchable, Loadable}};
+use crate::bundler::{loader::utils::{ends_with, collect_paths}, game_data::{file_types::{darkest_parser, DarkestEntry}, BTreeMappable, BTreePatchable, Loadable, BTreeMapExt, BTreeSetable}, diff::DataMap};
 use std::{
     collections::{HashMap},
     convert::TryInto,
@@ -22,8 +22,30 @@ pub struct HeroInfo {
 }
 
 impl BTreeMappable for HeroInfo {
-    fn to_map(&self) -> crate::bundler::diff::DataMap {
-        todo!()
+    fn to_map(&self) -> DataMap {
+        let mut out = DataMap::new();
+        let mut inner = DataMap::new();
+
+        inner.extend_prefixed("resistances", self.resistances.to_map());
+        inner.extend_prefixed("weapons", self.weapons.to_map());
+        inner.extend_prefixed("armours", self.armours.to_map());
+        inner.extend_prefixed("skills", self.skills.to_map());
+        inner.extend_prefixed("riposte_skill", self.riposte_skill.to_map());
+        inner.extend_prefixed("move_skill", self.move_skill.to_map());
+        inner.extend_prefixed("tags", self.tags.to_set());
+        inner.extend_prefixed("extra_stack_limit", self.extra_stack_limit.to_set());
+        inner.extend_prefixed("deaths_door", self.deaths_door.to_map());
+        inner.extend_prefixed("modes", self.modes.to_map());
+        for (key, value) in &self.other {
+            let mut intermid = DataMap::new();
+            intermid.extend_prefixed(&key.1, value.to_set());
+            let mut intermid_outer = DataMap::new();
+            intermid_outer.extend_prefixed(&key.0, intermid);
+            inner.extend_prefixed("other", intermid_outer);
+        }
+
+        out.extend_prefixed(&self.id, inner);
+        out
     }
 }
 
@@ -161,6 +183,21 @@ impl Resistances {
     }
 }
 
+impl BTreeMappable for Resistances {
+    fn to_map(&self) -> DataMap {
+        let mut out = DataMap::new();
+        out.insert(vec!["stun".into()], self.stun.into());
+        out.insert(vec!["poison".into()], self.poison.into());
+        out.insert(vec!["bleed".into()], self.bleed.into());
+        out.insert(vec!["disease".into()], self.disease.into());
+        out.insert(vec!["move".into()], self.moving.into());
+        out.insert(vec!["debuff".into()], self.debuff.into());
+        out.insert(vec!["death_blow".into()], self.death_blow.into());
+        out.insert(vec!["trap".into()], self.trap.into());
+        out
+    }
+}
+
 #[derive(Clone, Debug)]
 struct Weapons([Weapon; 5]);
 #[derive(Clone, Debug, Default)]
@@ -200,6 +237,28 @@ impl Weapon {
     }
 }
 
+impl BTreeMappable for Weapons {
+    fn to_map(&self) -> DataMap {
+        let mut out = DataMap::new();
+        for (index, item) in self.0.iter().enumerate() {
+            out.extend_prefixed(&index.to_string(), item.to_map());
+        }
+        out
+    }
+}
+
+impl BTreeMappable for Weapon {
+    fn to_map(&self) -> DataMap {
+        let mut out = DataMap::new();
+        out.insert(vec!["atk".into()], self.atk.into());
+        out.insert(vec!["dmg min".into()], self.dmg.0.into());
+        out.insert(vec!["dmg max".into()], self.dmg.1.into());
+        out.insert(vec!["crit".into()], self.crit.into());
+        out.insert(vec!["spd".into()], self.spd.into());
+        out
+    }
+}
+
 #[derive(Clone, Debug)]
 struct Armours([Armour; 5]);
 #[derive(Clone, Debug, Default)]
@@ -231,6 +290,27 @@ impl Armour {
     }
 }
 
+impl BTreeMappable for Armours {
+    fn to_map(&self) -> DataMap {
+        let mut out = DataMap::new();
+        for (index, item) in self.0.iter().enumerate() {
+            out.extend_prefixed(&index.to_string(), item.to_map());
+        }
+        out
+    }
+}
+
+impl BTreeMappable for Armour {
+    fn to_map(&self) -> DataMap {
+        let mut out = DataMap::new();
+        out.insert(vec!["def".into()], self.def.into());
+        out.insert(vec!["prot".into()], self.prot.into());
+        out.insert(vec!["hp".into()], self.hp.into());
+        out.insert(vec!["spd".into()], self.spd.into());
+        out
+    }
+}
+
 #[derive(Clone, Debug)]
 struct Skills(HashMap<(String, i32), Skill>);
 
@@ -247,6 +327,16 @@ impl Skills {
                 .map(|(key, value)| (key, Skill::from_entries(value)))
                 .collect(),
         )
+    }
+}
+
+impl BTreeMappable for Skills {
+    fn to_map(&self) -> DataMap {
+        let mut out = DataMap::new();
+        for ((name, level), skill) in &self.0 {
+            out.extend_prefixed(&format!("{}_{}", name, level), skill.to_map());
+        }
+        out
     }
 }
 
@@ -271,6 +361,15 @@ impl Skill {
     }
 }
 
+impl BTreeMappable for Skill {
+    fn to_map(&self) -> DataMap {
+        let mut out = DataMap::new();
+        out.extend_prefixed("effects", self.effects.to_map());
+        out.extend(self.other.clone().into_iter().map(|(key, value)| (vec![key], value.into())));
+        out
+    }
+}
+
 #[derive(Clone, Debug)]
 struct MoveSkill {
     forward: i32,
@@ -287,6 +386,15 @@ impl MoveSkill {
             backward: dmg.next().expect("Move skill MOVE field is empty"),
             forward: dmg.next().expect("Move skill MOVE field has only one entry"),
         }
+    }
+}
+
+impl BTreeMappable for MoveSkill {
+    fn to_map(&self) -> DataMap {
+        let mut out = DataMap::new();
+        out.insert(vec!["forward".into()], self.forward.into());
+        out.insert(vec!["backward".into()], self.backward.into());
+        out
     }
 }
 
@@ -309,6 +417,14 @@ impl DeathsDoor {
     }
 }
 
+impl BTreeMappable for DeathsDoor {
+    fn to_map(&self) -> DataMap {
+        let mut out = DataMap::new();
+        out.extend_prefixed("buffs", self.buffs.to_set());
+        out
+    }
+}
+
 #[derive(Clone, Debug)]
 struct Modes(HashMap<String, Mode>);
 impl Modes {
@@ -317,10 +433,30 @@ impl Modes {
     }
 }
 
+impl BTreeMappable for Modes {
+    fn to_map(&self) -> DataMap {
+        let mut out = DataMap::new();
+        for (key, value) in &self.0 {
+            out.extend_prefixed(key, value.to_map());
+        }
+        out
+    }
+}
+
 #[derive(Clone, Debug)]
 struct Mode(HashMap<String, Vec<String>>);
 impl Mode {
     fn from_entry(mut input: DarkestEntry) -> (String, Self) {
         (input.remove("id").unwrap().remove(0), Self(input.into_iter().collect()))
+    }
+}
+
+impl BTreeMappable for Mode {
+    fn to_map(&self) -> DataMap {
+        let mut out = DataMap::new();
+        for (key, value) in &self.0 {
+            out.extend_prefixed(key, value.to_set());
+        }
+        out
     }
 }
