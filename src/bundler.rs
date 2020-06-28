@@ -87,58 +87,60 @@ fn do_bundle(
     on_file_read: &mut cursive::CbSink,
     global_data: GlobalData,
 ) -> Result<(), error::BundlerError> {
+    info!("Extracting data from game directory");
+    let path = crate::paths::game(&global_data.base_path);
+
     let mut on_load = on_file_read.clone();
     let on_load = move |s: String| {
         set_file_updated(&mut on_load, "Reading", s)
     };
-    let data = game_data::load_data(on_load, &crate::paths::game(&global_data.base_path))?;
-    for (key, value) in data {
-        info!("Got pair: path = {:?}, value = {:?}", key, value);
+    let mut data = game_data::load_data(on_load, &path)?;
+
+    info!("Vanilla game data extracted");
+
+    crate::run_update(on_file_read, |cursive| {
+        cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
+            dialog.set_title("Loading DLC data...");
+        });
+    });
+
+    let mut on_load = on_file_read.clone();
+    let on_load = move |s: String| {
+        set_file_updated(&mut on_load, "Reading", s)
+    };
+
+    info!("Extracting DLC data");
+    let dlc_path = path.join("dlc");
+    for entry in read_dir(&dlc_path).map_err(ExtractionError::from_io(&dlc_path))? {
+        let entry = entry.map_err(ExtractionError::from_io(&dlc_path))?;
+        let path = entry.path();
+        if entry
+            .metadata()
+            .map_err(ExtractionError::from_io(&path))?
+            .is_dir()
+        {
+            info!("Reading DLC: {:?}", path);
+            let dlc_dir_name = path
+                .file_name()
+                .map(std::ffi::OsStr::to_string_lossy)
+                .unwrap_or_else(|| {
+                    warn!("No filename in DLC directory path - this must be a bug");
+                    "<INVALID>".into()
+                })
+                .to_string();
+            crate::run_update(on_file_read, |cursive| {
+                cursive
+                    .call_on_name("Loading part", |text: &mut TextView| {
+                        text.set_content(dlc_dir_name);
+                    })
+                    .unwrap();
+            });
+            data.extend(game_data::load_data(on_load.clone(), &path)?);
+        } else {
+            warn!("Found non-directory item in DLC folder: {:?}", path);
+        }
     }
-
-    // let path = crate::paths::game(&global_data.base_path);
-    // info!("Extracting data from game directory");
-    // let mut original_data = extract_data(on_file_read, &path, &path, true)?;
-    // info!("Vanilla game data extracted");
-
-    // crate::run_update(on_file_read, |cursive| {
-    //     cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
-    //         dialog.set_title("Loading DLC data...");
-    //     });
-    // });
-
-    // info!("Extracting DLC data");
-    // let dlc_path = path.join("dlc");
-    // for entry in read_dir(&dlc_path).map_err(ExtractionError::from_io(&dlc_path))? {
-    //     let entry = entry.map_err(ExtractionError::from_io(&dlc_path))?;
-    //     let path = entry.path();
-    //     if entry
-    //         .metadata()
-    //         .map_err(ExtractionError::from_io(&path))?
-    //         .is_dir()
-    //     {
-    //         info!("Reading DLC: {:?}", path);
-    //         let dlc_dir_name = path
-    //             .file_name()
-    //             .map(std::ffi::OsStr::to_string_lossy)
-    //             .unwrap_or_else(|| {
-    //                 warn!("No filename in DLC directory path - this must be a bug");
-    //                 "<INVALID>".into()
-    //             })
-    //             .to_string();
-    //         crate::run_update(on_file_read, |cursive| {
-    //             cursive
-    //                 .call_on_name("Loading part", |text: &mut TextView| {
-    //                     text.set_content(dlc_dir_name);
-    //                 })
-    //                 .unwrap();
-    //         });
-    //         original_data.extend(extract_data(on_file_read, &path, &path, true)?);
-    //     } else {
-    //         warn!("Found non-directory item in DLC folder: {:?}", path);
-    //     }
-    // }
-    // info!("DLC data extracted and merged into vanilla game");
+    info!("DLC data extracted and merged into vanilla game");
 
     // crate::run_update(on_file_read, |cursive| {
     //     cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {

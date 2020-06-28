@@ -36,9 +36,12 @@ impl BTreePatchable for StringsTable {
 }
 impl Loadable for StringsTable {
     fn prepare_list(root_path: &std::path::Path) -> std::io::Result<Vec<std::path::PathBuf>> {
-        collect_paths(&root_path.join("localization"), |path| {
-            Ok(has_ext(path, "xml"))
-        })
+        let path = root_path.join("localization");
+        if path.exists() {
+            collect_paths(&path, |path| Ok(has_ext(path, "xml")))
+        } else {
+            Ok(vec![])
+        }
     }
     fn load_raw(path: &std::path::Path) -> std::io::Result<Self> {
         let mut out = HashMap::new();

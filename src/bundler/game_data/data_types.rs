@@ -58,6 +58,7 @@ impl Loadable for BinaryData {
         let results: Result<Vec<Vec<_>>, _> = BINARY_DIRS
             .iter()
             .map(|dir| root_path.join(dir))
+            .filter(|dir| dir.exists())
             .inspect(|dir| log::debug!("Loading binary data from {:?}", dir))
             .map(|dir| collect_paths(&dir, |_| Ok(true)))
             .collect();

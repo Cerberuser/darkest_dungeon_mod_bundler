@@ -1,9 +1,13 @@
-use crate::bundler::{loader::utils::{ends_with, collect_paths}, game_data::{file_types::{darkest_parser, DarkestEntry}, BTreeMappable, BTreePatchable, Loadable, BTreeMapExt, BTreeSetable}, diff::DataMap};
-use std::{
-    collections::{HashMap},
-    convert::TryInto,
+use crate::bundler::{
+    diff::DataMap,
+    game_data::{
+        file_types::{darkest_parser, DarkestEntry},
+        BTreeMapExt, BTreeMappable, BTreePatchable, BTreeSetable, Loadable,
+    },
+    loader::utils::{collect_paths, ends_with},
 };
 use combine::EasyParser;
+use std::{collections::HashMap, convert::TryInto};
 
 #[derive(Clone, Debug)]
 pub struct HeroInfo {
@@ -66,13 +70,22 @@ impl BTreePatchable for HeroInfo {
 
 impl Loadable for HeroInfo {
     fn prepare_list(root_path: &std::path::Path) -> std::io::Result<Vec<std::path::PathBuf>> {
-        collect_paths(
-            &root_path.join("heroes"),
-            |path| Ok(ends_with(path, ".info.darkest")),
-        )
+        let path = root_path.join("heroes");
+        if path.exists() {
+            collect_paths(&path, |path| Ok(ends_with(path, ".info.darkest")))
+        } else {
+            Ok(vec![])
+        }
     }
     fn load_raw(path: &std::path::Path) -> std::io::Result<Self> {
-        let id = path.file_name().unwrap().to_string_lossy().split('.').next().unwrap().to_string();
+        let id = path
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .split('.')
+            .next()
+            .unwrap()
+            .to_string();
 
         let darkest_file = std::fs::read_to_string(path)?;
         let (darkest_file, rest) = darkest_parser().easy_parse(darkest_file.as_str()).unwrap();
@@ -93,7 +106,7 @@ impl Loadable for HeroInfo {
 
         for (key, entry) in darkest_file {
             match key.as_str() {
-                "resistances" => { 
+                "resistances" => {
                     let existing = resistances.replace(entry);
                     debug_assert!(existing.is_none());
                 }
@@ -101,13 +114,13 @@ impl Loadable for HeroInfo {
                 "armour" => armours.push(entry),
                 "combat_skill" => skills.push(entry),
                 "riposte_skill" => riposte_skill.push(entry),
-                "combat_move_skill" => { 
+                "combat_move_skill" => {
                     let existing = move_skill.replace(entry);
                     debug_assert!(existing.is_none());
                 }
                 "tag" => tags.extend(entry.get("id").cloned().unwrap()),
                 "extra_stack_limit" => extra_stack_limit.extend(entry.get("id").cloned().unwrap()),
-                "deaths_door" => { 
+                "deaths_door" => {
                     let existing = deaths_door.replace(entry);
                     debug_assert!(existing.is_none());
                 }
@@ -211,14 +224,21 @@ struct Weapon {
 impl Weapons {
     fn from_entries(input: Vec<DarkestEntry>) -> Self {
         let out: Vec<_> = input.into_iter().map(Weapon::from_entry).collect();
-        let out: &[_; 5] = out.as_slice().try_into().expect("Should be exactly 5 weapons");
+        let out: &[_; 5] = out
+            .as_slice()
+            .try_into()
+            .expect("Should be exactly 5 weapons");
         Self(out.to_owned())
     }
 }
 impl Weapon {
     fn from_entry(input: DarkestEntry) -> Self {
         let mut out = Self::default();
-        out.atk = input.get("atk").expect("Weapon ATK not found").get(0).expect("Weapon ATK field is empty")
+        out.atk = input
+            .get("atk")
+            .expect("Weapon ATK not found")
+            .get(0)
+            .expect("Weapon ATK field is empty")
             .trim_end_matches('%')
             .parse()
             .expect("Weapon ATK is not a number");
@@ -227,12 +247,17 @@ impl Weapon {
             .expect("Weapon DMG field not found")
             .into_iter()
             .map(|s| s.parse().expect("Weapon DMG field is not a number"));
-        out.dmg = (dmg.next().expect("Weapon DMG field is empty"), dmg.next().expect("Weapon DMG field has only one entry"));
+        out.dmg = (
+            dmg.next().expect("Weapon DMG field is empty"),
+            dmg.next().expect("Weapon DMG field has only one entry"),
+        );
         out.crit = input.get("crit").expect("Weapon CRIT field not found")[0]
             .trim_end_matches('%')
             .parse()
             .expect("Weapon CRIT field is not a number");
-        out.spd = input.get("spd").expect("Weapon SPD field not found")[0].parse().expect("Weapon SPD field is not a number");
+        out.spd = input.get("spd").expect("Weapon SPD field not found")[0]
+            .parse()
+            .expect("Weapon SPD field is not a number");
         out
     }
 }
@@ -272,7 +297,10 @@ struct Armour {
 impl Armours {
     fn from_entries(input: Vec<DarkestEntry>) -> Self {
         let out: Vec<_> = input.into_iter().map(Armour::from_entry).collect();
-        let out: &[_; 5] = out.as_slice().try_into().expect("Should be exactly 5 armours");
+        let out: &[_; 5] = out
+            .as_slice()
+            .try_into()
+            .expect("Should be exactly 5 armours");
         Self(out.to_owned())
     }
 }
@@ -283,9 +311,15 @@ impl Armour {
             .trim_end_matches('%')
             .parse()
             .expect("Armour DEF field is not a number");
-        out.prot = input.get("prot").expect("Armour PROT field not found")[0].parse().expect("Armour PROT field is not a number");
-        out.hp = input.get("hp").expect("Armour HP field not found")[0].parse().expect("Armour HP field is not a number");
-        out.spd = input.get("spd").expect("Armour SPD field not found")[0].parse().expect("Armour SPD field is not a number");
+        out.prot = input.get("prot").expect("Armour PROT field not found")[0]
+            .parse()
+            .expect("Armour PROT field is not a number");
+        out.hp = input.get("hp").expect("Armour HP field not found")[0]
+            .parse()
+            .expect("Armour HP field is not a number");
+        out.spd = input.get("spd").expect("Armour SPD field not found")[0]
+            .parse()
+            .expect("Armour SPD field is not a number");
         out
     }
 }
@@ -319,7 +353,9 @@ impl Skills {
         let mut tmp: HashMap<(String, i32), Vec<DarkestEntry>> = HashMap::new();
         for entry in input {
             let id = entry.get("id").expect("Skill ID field not found")[0].clone();
-            let level = entry.get("level").expect("Skill LEVEL field not found")[0].parse().expect("Skill LEVEL field is not a number");
+            let level = entry.get("level").expect("Skill LEVEL field not found")[0]
+                .parse()
+                .expect("Skill LEVEL field is not a number");
             tmp.entry((id, level)).or_default().push(entry);
         }
         Self(
@@ -365,7 +401,12 @@ impl BTreeMappable for Skill {
     fn to_map(&self) -> DataMap {
         let mut out = DataMap::new();
         out.extend_prefixed("effects", self.effects.to_map());
-        out.extend(self.other.clone().into_iter().map(|(key, value)| (vec![key], value.into())));
+        out.extend(
+            self.other
+                .clone()
+                .into_iter()
+                .map(|(key, value)| (vec![key], value.into())),
+        );
         out
     }
 }
@@ -384,7 +425,9 @@ impl MoveSkill {
             .map(|s| s.parse().expect("Move skill MOVE field is not a number"));
         Self {
             backward: dmg.next().expect("Move skill MOVE field is empty"),
-            forward: dmg.next().expect("Move skill MOVE field has only one entry"),
+            forward: dmg
+                .next()
+                .expect("Move skill MOVE field has only one entry"),
         }
     }
 }
@@ -447,7 +490,10 @@ impl BTreeMappable for Modes {
 struct Mode(HashMap<String, Vec<String>>);
 impl Mode {
     fn from_entry(mut input: DarkestEntry) -> (String, Self) {
-        (input.remove("id").unwrap().remove(0), Self(input.into_iter().collect()))
+        (
+            input.remove("id").unwrap().remove(0),
+            Self(input.into_iter().collect()),
+        )
     }
 }
 
