@@ -1,9 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{hash_map::IntoIter, HashMap};
 
 use combine::{
-    choice, eof, many, many1, not_followed_by, one_of, optional,
+    choice, eof, many, not_followed_by, one_of, optional,
     parser::{
-        char::{alpha_num, char as exact_char, digit, letter, space},
+        char::{alpha_num, char as exact_char, letter, space},
         repeat::{skip_many, skip_many1, skip_until, take_until},
     },
     sep_by1, ParseError, ParseResult, Parser, Stream, StreamOnce,
@@ -29,8 +29,11 @@ impl DarkestEntry {
     {
         self.0.get(&key)
     }
-
-    pub fn into_iter(self) -> impl Iterator<Item = (String, Vec<String>)> {
+}
+impl IntoIterator for DarkestEntry {
+    type Item = (String, Vec<String>);
+    type IntoIter = IntoIter<String, Vec<String>>;
+    fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
 }
@@ -205,26 +208,9 @@ impl DarkestEntry {
             take_until(exact_char('"')),
             exact_char('"'),
         )
-            .map(|(_, s, _)| s);
-        let number = || {
-            (
-                optional(exact_char('-')),
-                many1(digit()),
-                optional(exact_char('.').with(many1(digit()))),
-                optional(exact_char('%')),
-            )
-                .map(
-                    |(minus, first, second, percent): (_, String, Option<String>, _)| {
-                        let minus = minus.map(|c: char| c.to_string()).unwrap_or("".into());
-                        let second = second
-                            .map(|second| format!(".{}", second))
-                            .unwrap_or("".into());
-                        let percent = percent.map(|c: char| c.to_string()).unwrap_or("".into());
-                        format!("{}{}{}{}", minus, first, second, percent)
-                    },
-                )
-        };
-        choice((Self::ident(), quoted_string, number()))
+            .map(|(_, s, _): (_, String, _)| format!("\"{}\"", s));
+        let unquoted_string = take_until(choice((skip_many1(space()), eof())));
+        choice((quoted_string, unquoted_string))
     }
 
     fn parser<Input>() -> impl Parser<Input, Output = (String, Self)>
@@ -282,7 +268,7 @@ mod test {
 
     #[test]
     fn parse_item() {
-        let slice = ".key value \"value1 value2\"  123.45% 123.45";
+        let slice = ".key value \"value1 value2\"\t123.45%  \t 123.45";
         ItemsParser::new()
             .easy_parse(slice)
             .unwrap_or_else(|err| bail(err, slice));
@@ -302,6 +288,14 @@ mod test {
     fn parse_entry() {
         let slice =
             "key: .string value .strings value1 \"value2 value3\" .number 123.45 .percent 123.45%";
+        DarkestEntry::parser()
+            .easy_parse(slice)
+            .unwrap_or_else(|err| bail(err, slice));
+    }
+
+    #[test]
+    fn parse_with_arbitrary_strings() {
+        let slice = "key: .string ~1234 .strings ?1234 \"value2 value3\" @1234";
         DarkestEntry::parser()
             .easy_parse(slice)
             .unwrap_or_else(|err| bail(err, slice));

@@ -91,7 +91,7 @@ fn do_bundle(
     let on_load = move |s: String| {
         set_file_updated(&mut on_load, "Reading", s)
     };
-    let data = game_data::load_data(on_load, &crate::paths::game(&global_data.base_path)).unwrap();
+    let data = game_data::load_data(on_load, &crate::paths::game(&global_data.base_path))?;
     for (key, value) in data {
         info!("Got pair: path = {:?}, value = {:?}", key, value);
     }

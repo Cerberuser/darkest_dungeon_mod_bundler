@@ -2,6 +2,7 @@ use super::{
     super::{
         diff::{DataMap, Patch},
         ModFileChange,
+        ExtractionError,
     },
     GameData, GameDataItem, GameDataValue, StructuredItem,
 };
@@ -11,6 +12,7 @@ use std::{
     io::Result as IoResult,
     path::{Path, PathBuf},
 };
+use log::*;
 
 pub trait BTreeLinkedMappable: Sized + Clone {
     fn from_iter(_: impl IntoIterator<Item = String>) -> Self;
@@ -104,17 +106,15 @@ pub trait Loadable: Sized {
 macro_rules! load {
     ($on_load:expr, $root_path:expr) => {{
         let root_path = $root_path.as_ref();
-        Self::prepare_list(root_path)?
+        Self::prepare_list(root_path).map_err(ExtractionError::from_io(root_path))?
             .into_iter()
-            .inspect(move |path| $on_load(path.to_string_lossy().to_string()))
-            .map(move |path| {
-                let data = Self::load_raw(&path);
-                let path = rel_path(root_path, path);
-                match (path, data) {
-                    (Ok(path), Ok(data)) => Ok((path, data)),
-                    (Err(error), _) => Err(error),
-                    (_, Err(error)) => Err(error),
-                }
+            .map(move |full_path| {
+                debug!("Starting loading from path {:?}", full_path);
+                let path = rel_path(root_path, &full_path).map_err(ExtractionError::from_io(&full_path))?;
+                debug!("Calculated relative path: {:?}", path);
+                $on_load(path.to_string_lossy().to_string());
+                let data = Self::load_raw(&full_path).map_err(ExtractionError::from_io(&full_path))?;
+                Ok((path, data))
             })
     }};
 }
@@ -126,7 +126,7 @@ pub trait LoadableBinary: Loadable + Binary {
     fn load(
         mut on_load: impl FnMut(String) + Clone,
         root_path: impl AsRef<Path>,
-    ) -> IoResult<GameData> {
+    ) -> Result<GameData, ExtractionError> {
         load!(on_load, root_path)
             .map(|res| res.map(|(key, value)| (key, GameDataItem::Binary(value.into_path()))))
             .collect()
@@ -137,7 +137,7 @@ pub trait LoadableStructured: Loadable + Into<StructuredItem> {
     fn load(
         mut on_load: impl FnMut(String) + Clone,
         root_path: impl AsRef<Path>,
-    ) -> IoResult<GameData> {
+    ) -> Result<GameData, ExtractionError> {
         load!(on_load, root_path)
             .map(|res| res.map(|(key, value)|(key, GameDataItem::Structured(value.into()))))
             .collect()

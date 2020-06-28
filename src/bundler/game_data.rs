@@ -13,6 +13,7 @@ pub use traits::*;
 use super::{
     diff::{DataMap, Patch},
     ModFileChange,
+    ExtractionError,
 };
 
 macro_rules! game_data_value {
@@ -87,6 +88,7 @@ macro_rules! structured {
 
 structured! {
     HeroInfo,
+    StringsTable,
 }
 
 #[derive(Clone, Debug)]
@@ -100,7 +102,7 @@ pub type GameData = BTreeMap<PathBuf, GameDataItem>;
 pub fn load_data(
     on_load: impl FnMut(String) + Clone,
     root_path: &Path,
-) -> std::io::Result<GameData> {
+) -> Result<GameData, ExtractionError> {
     let mut data = GameData::new();
 
     macro_rules! load {
@@ -115,6 +117,8 @@ pub fn load_data(
         AudioData,
         CampaignData,
         HeroInfo,
+        HeroBinary,
+        StringsTable,
     }
 
     Ok(data)
