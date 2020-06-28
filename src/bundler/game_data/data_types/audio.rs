@@ -22,17 +22,21 @@ impl Binary for AudioBank {
 
 impl Loadable for AudioBank {
     fn load_raw(
-        mut cb: impl FnMut(String) + Clone,
-        path: impl AsRef<Path>,
+        mut on_load: impl FnMut(String) + Clone,
+        root_path: impl AsRef<Path>,
     ) -> IoResult<HashMap<PathBuf, Self>> {
-        collect_tree(path.as_ref(), &path.as_ref().join("audio"), move |path| {
-            if has_ext(path, "bank") {
-                cb(path.to_string_lossy().into());
-                Ok(Some(AudioBank(path.to_path_buf())))
-            } else {
-                Ok(None)
-            }
-        })
+        collect_tree(
+            root_path.as_ref(),
+            &root_path.as_ref().join("audio"),
+            move |path| {
+                if has_ext(path, "bank") {
+                    on_load(path.to_string_lossy().into());
+                    Ok(Some(AudioBank(path.to_path_buf())))
+                } else {
+                    Ok(None)
+                }
+            },
+        )
     }
 }
 
@@ -54,17 +58,21 @@ impl BTreeLinkedMappable for LoadOrder {
 
 impl Loadable for LoadOrder {
     fn load_raw(
-        mut cb: impl FnMut(String) + Clone,
-        path: impl AsRef<Path>,
+        mut on_load: impl FnMut(String) + Clone,
+        root_path: impl AsRef<Path>,
     ) -> IoResult<HashMap<PathBuf, Self>> {
-        collect_tree(path.as_ref(), &path.as_ref().join("audio"), move |path| {
-            if ends_with(&path, ".load_order.json") {
-                cb(path.to_string_lossy().into());
-                load_json(path).map(Some)
-            } else {
-                Ok(None)
-            }
-        })
+        collect_tree(
+            root_path.as_ref(),
+            &root_path.as_ref().join("audio"),
+            move |path| {
+                if ends_with(&path, ".load_order.json") {
+                    on_load(path.to_string_lossy().into());
+                    load_json(path).map(Some)
+                } else {
+                    Ok(None)
+                }
+            },
+        )
     }
 }
 
@@ -76,17 +84,21 @@ pub struct Narration {
 
 impl Loadable for Narration {
     fn load_raw(
-        mut cb: impl FnMut(String) + Clone,
-        path: impl AsRef<Path>,
+        mut on_load: impl FnMut(String) + Clone,
+        root_path: impl AsRef<Path>,
     ) -> IoResult<HashMap<PathBuf, Self>> {
-        collect_tree(path.as_ref(), &path.as_ref().join("audio"), move |path| {
-            if ends_with(&path, "narration.json") {
-                cb(path.to_string_lossy().into());
-                load_json(path).map(Some)
-            } else {
-                Ok(None)
-            }
-        })
+        collect_tree(
+            root_path.as_ref(),
+            &root_path.as_ref().join("audio"),
+            move |path| {
+                if ends_with(&path, "narration.json") {
+                    on_load(path.to_string_lossy().into());
+                    load_json(path).map(Some)
+                } else {
+                    Ok(None)
+                }
+            },
+        )
     }
 }
 
@@ -167,6 +179,75 @@ impl BTreeMappable for AudioEvent {
 }
 
 impl BTreeMappable for Vec<AudioEvent> {
+    fn to_map(&self) -> DataMap {
+        btree_vec(self)
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct EventGuidOverrides {
+    event_guid_overrides: Vec<Override>,
+}
+
+impl BTreeMappable for EventGuidOverrides {
+    fn to_map(&self) -> DataMap {
+        self.event_guid_overrides.to_map()
+    }
+}
+
+impl BTreePatchable for EventGuidOverrides {
+    fn merge_patches(
+        &self,
+        patches: impl IntoIterator<Item = crate::bundler::ModFileChange>,
+    ) -> (
+        crate::bundler::diff::Patch,
+        Vec<crate::bundler::ModFileChange>,
+    ) {
+        todo!()
+    }
+    fn apply_patch(&mut self, patch: crate::bundler::diff::Patch) -> Result<(), ()> {
+        todo!()
+    }
+}
+
+impl Loadable for EventGuidOverrides {
+    fn load_raw(
+        mut on_load: impl FnMut(String) + Clone,
+        root_path: impl AsRef<Path>,
+    ) -> IoResult<HashMap<PathBuf, Self>> {
+        collect_tree(
+            root_path.as_ref(),
+            &root_path.as_ref().join("audio"),
+            move |path| {
+                if ends_with(&path, ".guid_overrides.json") {
+                    on_load(path.to_string_lossy().into());
+                    load_json(path).map(Some)
+                } else {
+                    Ok(None)
+                }
+            },
+        )
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct Override {
+    event_id: String,
+    guid_override: String,
+}
+
+impl BTreeMappable for Override {
+    fn to_map(&self) -> DataMap {
+        let mut map = DataMap::new();
+        map.insert(
+            vec![self.event_id.clone()],
+            self.guid_override.clone().into(),
+        );
+        map
+    }
+}
+
+impl BTreeMappable for Vec<Override> {
     fn to_map(&self) -> DataMap {
         btree_vec(self)
     }

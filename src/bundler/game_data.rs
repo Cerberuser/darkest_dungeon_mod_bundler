@@ -12,9 +12,25 @@ pub use traits::*;
 
 use super::{ModFileChange, diff::{DataMap, Patch}};
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(untagged)]
-pub enum GameDataValue {
+macro_rules! game_data_value {
+    ($($id:ident($ty:ty)),+ $(,)?) => {
+        #[derive(Serialize, Deserialize, Clone, Debug)]
+        #[serde(untagged)]
+        pub enum GameDataValue {
+            $(
+                $id($ty),
+            )+
+        }
+        $(
+            impl From<$ty> for GameDataValue {
+                fn from(value: $ty) -> Self {
+                    Self::$id(value)
+                }
+            }
+        )+
+    };
+}
+game_data_value! {
     Bool(bool),
     Int(i32),
     Float(f32),
@@ -66,6 +82,7 @@ macro_rules! structured {
 structured! {
     LoadOrder,
     Narration,
+    EventGuidOverrides,
 }
 
 #[derive(Clone, Debug)]
@@ -87,9 +104,11 @@ pub fn load_data(on_load: impl FnMut(String) + Clone, root_path: &Path) -> std::
         };
     }
     load! {
+        ActivityLogImage,
         AudioBank,
         LoadOrder,
         Narration,
+        EventGuidOverrides,
     }
 
     Ok(data)
