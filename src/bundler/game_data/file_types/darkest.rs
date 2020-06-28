@@ -8,10 +8,32 @@ use combine::{
     },
     sep_by1, ParseError, ParseResult, Parser, Stream, StreamOnce,
 };
-use std::marker::PhantomData;
+use std::{borrow::Borrow, hash::Hash, marker::PhantomData, ops::Deref};
 
 #[derive(Clone, Debug, Default)]
 pub struct DarkestEntry(HashMap<String, Vec<String>>);
+
+impl DarkestEntry {
+    pub fn remove<K: ?Sized>(&mut self, key: &K) -> Option<Vec<String>>
+    where
+        String: Borrow<K>,
+        K: Hash + Eq,
+    {
+        self.0.remove(&key)
+    }
+
+    pub fn get<K: ?Sized>(&self, key: &K) -> Option<&Vec<String>>
+    where
+        String: Borrow<K>,
+        K: Hash + Eq,
+    {
+        self.0.get(&key)
+    }
+
+    pub fn into_iter(self) -> impl Iterator<Item = (String, Vec<String>)> {
+        self.0.into_iter()
+    }
+}
 
 fn key_value<Input, Key, Value>(
     key: impl Parser<Input, Output = Key>,

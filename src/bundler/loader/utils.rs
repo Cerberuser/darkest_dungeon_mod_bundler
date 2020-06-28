@@ -18,6 +18,29 @@ pub fn dir_to_binary(
     })
 }
 
+pub fn collect_paths(
+    dir: &Path,
+    predicate: impl (Fn(&Path) -> std::io::Result<bool>) + Clone,
+) -> std::io::Result<Vec<PathBuf>> {
+    let mut out = vec![];
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if entry.metadata()?.is_dir() {
+            out.extend(collect_paths(&path, predicate.clone())?);
+        } else if predicate(&path)? {
+            out.push(path);
+        }
+    }
+    Ok(out)
+}
+
+pub fn load_by_path<R>(base_path: &Path, path: &Path, loader: impl FnOnce(&Path) -> std::io::Result<R>) -> std::io::Result<(PathBuf, R)> {
+    loader(&path).and_then(|data| {
+        rel_path(&base_path, path).map(|path| (path, data))
+    })
+}
+
 pub fn collect_tree<R>(
     base_path: &Path,
     dir: &Path,
@@ -89,7 +112,7 @@ pub fn read_from_json<T: DeserializeOwned>(
         .collect()
 }
 
-fn rel_path(base_path: impl AsRef<Path>, path: impl AsRef<Path>) -> std::io::Result<PathBuf> {
+pub fn rel_path(base_path: impl AsRef<Path>, path: impl AsRef<Path>) -> std::io::Result<PathBuf> {
     let path = path.as_ref();
     path.strip_prefix(base_path)
         .map(PathBuf::from)

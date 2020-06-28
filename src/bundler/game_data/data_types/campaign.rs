@@ -1,19 +1,20 @@
 use super::super::{Binary, Loadable};
-use crate::bundler::loader::utils::{collect_paths, collect_tree};
+use crate::bundler::loader::utils::{collect_tree, has_ext, collect_paths};
+
 use std::{
     collections::HashMap,
     io::Result as IoResult,
     path::{Path, PathBuf},
 };
 
-pub struct ActivityLogImage(PathBuf);
-impl Binary for ActivityLogImage {
+pub struct CampaignData(PathBuf);
+impl Binary for CampaignData {
     fn into_path(self) -> PathBuf {
         self.0
     }
 }
 
-impl Loadable for ActivityLogImage {
+impl Loadable for CampaignData {
     fn load_raw(
         path: &Path,
     ) -> std::io::Result<Self> {

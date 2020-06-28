@@ -5,6 +5,7 @@ use super::{
     },
     GameData, GameDataItem, GameDataValue, StructuredItem,
 };
+use crate::bundler::loader::utils::rel_path;
 use std::{
     collections::{BTreeMap, HashMap},
     io::Result as IoResult,
@@ -94,35 +95,52 @@ pub trait BTreeMapExt<Item>: Extend<(Vec<String>, Item)> {
 impl<V> BTreeMapExt<V> for BTreeMap<Vec<String>, V> {}
 
 pub trait Loadable: Sized {
-    fn load_raw(
-        on_load: impl FnMut(String) + Clone,
-        root_path: impl AsRef<Path>,
-    ) -> IoResult<HashMap<PathBuf, Self>>;
+    fn prepare_list(root_path: &Path) -> std::io::Result<Vec<PathBuf>>;
+    fn load_raw(path: &Path) -> std::io::Result<Self>;
 }
+
+// This is a macro and not a function, so that we don't have
+// to struggle with all the lifetime specifications on function boundaries.
+macro_rules! load {
+    ($on_load:expr, $root_path:expr) => {{
+        let root_path = $root_path.as_ref();
+        Self::prepare_list(root_path)?
+            .into_iter()
+            .inspect(move |path| $on_load(path.to_string_lossy().to_string()))
+            .map(move |path| {
+                let data = Self::load_raw(&path);
+                let path = rel_path(root_path, path);
+                match (path, data) {
+                    (Ok(path), Ok(data)) => Ok((path, data)),
+                    (Err(error), _) => Err(error),
+                    (_, Err(error)) => Err(error),
+                }
+            })
+    }};
+}
+
 pub trait Binary {
     fn into_path(self) -> PathBuf;
 }
 pub trait LoadableBinary: Loadable + Binary {
     fn load(
-        on_load: impl FnMut(String) + Clone,
+        mut on_load: impl FnMut(String) + Clone,
         root_path: impl AsRef<Path>,
     ) -> IoResult<GameData> {
-        Ok(Self::load_raw(on_load, root_path)?
-            .into_iter()
-            .map(|(key, value)| (key, GameDataItem::Binary(value.into_path())))
-            .collect())
+        load!(on_load, root_path)
+            .map(|res| res.map(|(key, value)| (key, GameDataItem::Binary(value.into_path()))))
+            .collect()
     }
 }
 impl<T: Loadable + Binary> LoadableBinary for T {}
 pub trait LoadableStructured: Loadable + Into<StructuredItem> {
     fn load(
-        on_load: impl FnMut(String) + Clone,
+        mut on_load: impl FnMut(String) + Clone,
         root_path: impl AsRef<Path>,
     ) -> IoResult<GameData> {
-        Ok(Self::load_raw(on_load, root_path)?
-            .into_iter()
-            .map(|(key, value)| (key, GameDataItem::Structured(value.into())))
-            .collect())
+        load!(on_load, root_path)
+            .map(|res| res.map(|(key, value)|(key, GameDataItem::Structured(value.into()))))
+            .collect()
     }
 }
 impl<T: Loadable + Into<StructuredItem>> LoadableStructured for T {}

@@ -1,8 +1,8 @@
+use serde::{Deserialize, Serialize};
 use std::{
-    collections::{HashMap, BTreeMap},
+    collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
 };
-use serde::{Serialize, Deserialize};
 
 pub mod data_types;
 pub mod file_types;
@@ -10,7 +10,10 @@ pub mod file_types;
 mod traits;
 pub use traits::*;
 
-use super::{ModFileChange, diff::{DataMap, Patch}};
+use super::{
+    diff::{DataMap, Patch},
+    ModFileChange,
+};
 
 macro_rules! game_data_value {
     ($($id:ident($ty:ty)),+ $(,)?) => {
@@ -42,7 +45,10 @@ game_data_value! {
 struct RestMap(HashMap<String, GameDataValue>);
 impl BTreeMappable for RestMap {
     fn to_map(&self) -> super::diff::DataMap {
-        self.0.iter().map(|(key, value)| (vec![key.into()], value.clone())).collect()
+        self.0
+            .iter()
+            .map(|(key, value)| (vec![key.into()], value.clone()))
+            .collect()
     }
 }
 
@@ -80,9 +86,7 @@ macro_rules! structured {
 }
 
 structured! {
-    LoadOrder,
-    Narration,
-    EventGuidOverrides,
+    HeroInfo,
 }
 
 #[derive(Clone, Debug)]
@@ -93,7 +97,10 @@ pub enum GameDataItem {
 
 pub type GameData = BTreeMap<PathBuf, GameDataItem>;
 
-pub fn load_data(on_load: impl FnMut(String) + Clone, root_path: &Path) -> std::io::Result<GameData> {
+pub fn load_data(
+    on_load: impl FnMut(String) + Clone,
+    root_path: &Path,
+) -> std::io::Result<GameData> {
     let mut data = GameData::new();
 
     macro_rules! load {
@@ -105,11 +112,33 @@ pub fn load_data(on_load: impl FnMut(String) + Clone, root_path: &Path) -> std::
     }
     load! {
         ActivityLogImage,
-        AudioBank,
-        LoadOrder,
-        Narration,
-        EventGuidOverrides,
+        AudioData,
+        CampaignData,
+        HeroInfo,
     }
 
     Ok(data)
 }
+
+// pub fn check_unsupported(root_path: &Path) -> std::io::Result<Result<(), Vec<PathBuf>>> {
+//     let mut errors = vec![];
+//     for path in &[
+//         "campaign/estate",
+//         "campaign/heirloom_exchange",
+//         "campaign/progression",
+//     ] {
+//         let path = root_path.join(path);
+//         if path.exists() {
+//             for entry in std::fs::read_dir(path)? {
+//                 let entry = entry?;
+//                 errors.push(entry.path().strip_prefix(&root_path).unwrap().to_path_buf());
+//             }
+//         }
+//     }
+
+//     Ok(if errors.is_empty() {
+//         Ok(())
+//     } else {
+//         Err(errors)
+//     })
+// }
