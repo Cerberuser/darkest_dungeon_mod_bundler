@@ -10,6 +10,25 @@ use std::{
     path::PathBuf,
     rc::Rc,
 };
+use super::game_data::GameDataValue;
+
+
+pub type DataMap = BTreeMap<Vec<String>, GameDataValue>;
+
+pub enum ItemChange {
+    Set(GameDataValue),
+    Removed
+}
+
+pub type Patch = BTreeMap<Vec<String>, ItemChange>;
+
+pub fn diff<K, V: Eq>(original: DataMap, patched: DataMap) -> Patch {
+    todo!();
+}
+
+/********************************
+ * This should be deleted later *
+ ********************************/
 
 pub type DataTree = BTreeMap<PathBuf, DataNode>;
 
@@ -53,11 +72,11 @@ impl From<Option<String>> for DataNodeContent {
     }
 }
 
-pub struct ModContent {
+pub struct LegacyModContent {
     name: String,
     diff: DiffTree,
 }
-impl ModContent {
+impl LegacyModContent {
     pub fn new(name: impl Into<String>, diff: DiffTree) -> Self {
         Self {
             name: name.into(),
@@ -271,7 +290,7 @@ impl DataTreeExt for DataTree {
     }
 }
 
-pub trait ResultDiffTressExt<E>: Iterator<Item = Result<ModContent, E>> + Sized {
+pub trait ResultDiffTressExt<E>: Iterator<Item = Result<LegacyModContent, E>> + Sized {
     fn try_merge(
         self,
         on_progress: Option<&mut cursive::CbSink>,
@@ -279,17 +298,17 @@ pub trait ResultDiffTressExt<E>: Iterator<Item = Result<ModContent, E>> + Sized 
         Ok(merge(try_prepare_merge(self)?, on_progress))
     }
 }
-impl<I, E> ResultDiffTressExt<E> for I where I: Iterator<Item = Result<ModContent, E>> + Sized {}
-pub trait DiffTreesExt: Iterator<Item = ModContent> + Sized {
+impl<I, E> ResultDiffTressExt<E> for I where I: Iterator<Item = Result<LegacyModContent, E>> + Sized {}
+pub trait DiffTreesExt: Iterator<Item = LegacyModContent> + Sized {
     fn merge(self, on_progress: Option<&mut cursive::CbSink>) -> (DiffTree, Conflicts) {
         merge(prepare_merge(self), on_progress)
     }
 }
-impl<I> DiffTreesExt for I where I: Iterator<Item = ModContent> + Sized {}
+impl<I> DiffTreesExt for I where I: Iterator<Item = LegacyModContent> + Sized {}
 
-type UsagesMap = HashMap<PathBuf, Vec<Rc<RefCell<ModContent>>>>;
+type UsagesMap = HashMap<PathBuf, Vec<Rc<RefCell<LegacyModContent>>>>;
 
-fn add_usage(usages: &mut UsagesMap, diff: ModContent) {
+fn add_usage(usages: &mut UsagesMap, diff: LegacyModContent) {
     info!("Filling the list of files touched by mod: {}", diff.name);
     let diff = Rc::new(RefCell::new(diff));
     let borrowed = diff.borrow();
@@ -305,7 +324,7 @@ fn add_usage(usages: &mut UsagesMap, diff: ModContent) {
 }
 
 fn try_prepare_merge<E>(
-    mods: impl IntoIterator<Item = Result<ModContent, E>>,
+    mods: impl IntoIterator<Item = Result<LegacyModContent, E>>,
 ) -> Result<UsagesMap, E> {
     let mut usages = HashMap::new();
     for diff in mods {
@@ -314,7 +333,7 @@ fn try_prepare_merge<E>(
     Ok(usages)
 }
 
-fn prepare_merge(mods: impl IntoIterator<Item = ModContent>) -> UsagesMap {
+fn prepare_merge(mods: impl IntoIterator<Item = LegacyModContent>) -> UsagesMap {
     let mut usages = HashMap::new();
     for diff in mods {
         add_usage(&mut usages, diff);

@@ -8,7 +8,6 @@ use cursive::{
     views::{Dialog, EditView, LinearLayout, Panel, TextView},
     Cursive,
 };
-use indoc::indoc;
 use log::*;
 use std::path::Path;
 

@@ -2,7 +2,8 @@ mod deploy;
 mod diff;
 mod error;
 mod resolve;
-mod structures;
+mod game_data;
+mod loader;
 
 use crate::loader::GlobalData;
 use cursive::{
@@ -10,14 +11,25 @@ use cursive::{
     views::{Dialog, LinearLayout, TextView},
     Cursive,
 };
-use diff::{DataNode, DataTree, DataTreeExt, DiffTreeExt, ModContent, ResultDiffTressExt};
+use diff::{DataNode, DataTree, DataTreeExt, DiffTreeExt, LegacyModContent, ResultDiffTressExt, DataMap, Patch};
 use error::ExtractionError;
 use log::*;
 use std::{
     fs::read_dir,
-    path::{Path, PathBuf},
+    path::{Path, PathBuf}, collections::HashMap,
 };
 use thiserror::Error;
+
+struct ModContent {
+    binary: HashMap<PathBuf, DataMap>,
+    text_added: HashMap<PathBuf, DataMap>,
+    text_modified: HashMap<PathBuf, Patch>,
+}
+
+pub struct ModFileChange {
+    mod_name: String,
+    change: Patch,
+}
 
 #[derive(Debug, Error)]
 #[error("Background thread panicked, stopping: {0}")]
@@ -75,89 +87,98 @@ fn do_bundle(
     on_file_read: &mut cursive::CbSink,
     global_data: GlobalData,
 ) -> Result<(), error::BundlerError> {
-    let path = crate::paths::game(&global_data.base_path);
-    info!("Extracting data from game directory");
-    let mut original_data = extract_data(on_file_read, &path, &path, true)?;
-    info!("Vanilla game data extracted");
-
-    crate::run_update(on_file_read, |cursive| {
-        cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
-            dialog.set_title("Loading DLC data...");
-        });
-    });
-
-    info!("Extracting DLC data");
-    let dlc_path = path.join("dlc");
-    for entry in read_dir(&dlc_path).map_err(ExtractionError::from_io(&dlc_path))? {
-        let entry = entry.map_err(ExtractionError::from_io(&dlc_path))?;
-        let path = entry.path();
-        if entry
-            .metadata()
-            .map_err(ExtractionError::from_io(&path))?
-            .is_dir()
-        {
-            info!("Reading DLC: {:?}", path);
-            let dlc_dir_name = path
-                .file_name()
-                .map(std::ffi::OsStr::to_string_lossy)
-                .unwrap_or_else(|| {
-                    warn!("No filename in DLC directory path - this must be a bug");
-                    "<INVALID>".into()
-                })
-                .to_string();
-            crate::run_update(on_file_read, |cursive| {
-                cursive
-                    .call_on_name("Loading part", |text: &mut TextView| {
-                        text.set_content(dlc_dir_name);
-                    })
-                    .unwrap();
-            });
-            original_data.extend(extract_data(on_file_read, &path, &path, true)?);
-        } else {
-            warn!("Found non-directory item in DLC folder: {:?}", path);
-        }
+    let mut on_load = on_file_read.clone();
+    let on_load = move |s: String| {
+        set_file_updated(&mut on_load, "Reading", s)
+    };
+    let data = game_data::load_data(on_load, &crate::paths::game(&global_data.base_path)).unwrap();
+    for (key, value) in data {
+        info!("Got pair: path = {:?}, value = {:?}", key, value);
     }
-    info!("DLC data extracted and merged into vanilla game");
 
-    crate::run_update(on_file_read, |cursive| {
-        cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
-            dialog.set_title("Loading workshop data...");
-            dialog.call_on_name("Loading part", |text: &mut TextView| {
-                text.set_content(" ");
-            })
-        });
-    });
+    // let path = crate::paths::game(&global_data.base_path);
+    // info!("Extracting data from game directory");
+    // let mut original_data = extract_data(on_file_read, &path, &path, true)?;
+    // info!("Vanilla game data extracted");
 
-    info!("Reading selected mods");
-    let mut for_mods_extract = on_file_read.clone();
-    let mods = global_data
-        .mods
-        .into_iter()
-        .inspect(|the_mod| info!("Reading mod: {:?}", the_mod))
-        .filter(|the_mod| the_mod.selected)
-        .map(|the_mod| {
-            info!("Extracting data from selected mod: {}", the_mod.name());
-            extract_mod(&mut for_mods_extract, the_mod, &original_data)
-        });
+    // crate::run_update(on_file_read, |cursive| {
+    //     cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
+    //         dialog.set_title("Loading DLC data...");
+    //     });
+    // });
 
-    let (merged, conflicts) = mods.try_merge(Some(on_file_read))?;
-    info!("Merged mods data, got {} conflicts", conflicts.len());
+    // info!("Extracting DLC data");
+    // let dlc_path = path.join("dlc");
+    // for entry in read_dir(&dlc_path).map_err(ExtractionError::from_io(&dlc_path))? {
+    //     let entry = entry.map_err(ExtractionError::from_io(&dlc_path))?;
+    //     let path = entry.path();
+    //     if entry
+    //         .metadata()
+    //         .map_err(ExtractionError::from_io(&path))?
+    //         .is_dir()
+    //     {
+    //         info!("Reading DLC: {:?}", path);
+    //         let dlc_dir_name = path
+    //             .file_name()
+    //             .map(std::ffi::OsStr::to_string_lossy)
+    //             .unwrap_or_else(|| {
+    //                 warn!("No filename in DLC directory path - this must be a bug");
+    //                 "<INVALID>".into()
+    //             })
+    //             .to_string();
+    //         crate::run_update(on_file_read, |cursive| {
+    //             cursive
+    //                 .call_on_name("Loading part", |text: &mut TextView| {
+    //                     text.set_content(dlc_dir_name);
+    //                 })
+    //                 .unwrap();
+    //         });
+    //         original_data.extend(extract_data(on_file_read, &path, &path, true)?);
+    //     } else {
+    //         warn!("Found non-directory item in DLC folder: {:?}", path);
+    //     }
+    // }
+    // info!("DLC data extracted and merged into vanilla game");
 
-    let resolved = resolve::resolve(on_file_read, conflicts);
-    let merged = resolve::merge_resolved(merged, resolved);
+    // crate::run_update(on_file_read, |cursive| {
+    //     cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
+    //         dialog.set_title("Loading workshop data...");
+    //         dialog.call_on_name("Loading part", |text: &mut TextView| {
+    //             text.set_content(" ");
+    //         })
+    //     });
+    // });
 
-    info!("Applying patches");
-    let modded = merged.apply_to(original_data);
+    // info!("Reading selected mods");
+    // let mut for_mods_extract = on_file_read.clone();
+    // let mods = global_data
+    //     .mods
+    //     .into_iter()
+    //     .inspect(|the_mod| info!("Reading mod: {:?}", the_mod))
+    //     .filter(|the_mod| the_mod.selected)
+    //     .map(|the_mod| {
+    //         info!("Extracting data from selected mod: {}", the_mod.name());
+    //         extract_mod(&mut for_mods_extract, the_mod, &original_data)
+    //     });
 
-    crate::run_update(on_file_read, |cursive| {
-        cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
-            dialog.set_title("Deploying...");
-        });
-    });
+    // let (merged, conflicts) = mods.try_merge(Some(on_file_read))?;
+    // info!("Merged mods data, got {} conflicts", conflicts.len());
 
-    info!("Deploying generated mod to the \"mods\" directory");
-    let mods_path = path.join("mods");
-    deploy::deploy(on_file_read, &mods_path, modded)?;
+    // let resolved = resolve::resolve(on_file_read, conflicts);
+    // let merged = resolve::merge_resolved(merged, resolved);
+
+    // info!("Applying patches");
+    // let modded = merged.apply_to(original_data);
+
+    // crate::run_update(on_file_read, |cursive| {
+    //     cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
+    //         dialog.set_title("Deploying...");
+    //     });
+    // });
+
+    // info!("Deploying generated mod to the \"mods\" directory");
+    // let mods_path = path.join("mods");
+    // deploy::deploy(on_file_read, &mods_path, modded)?;
 
     crate::run_update(on_file_read, |cursive| {
         crate::screen(
@@ -172,7 +193,7 @@ fn extract_mod(
     on_file_read: &mut cursive::CbSink,
     the_mod: crate::loader::Mod,
     original_data: &DataTree,
-) -> Result<ModContent, ExtractionError> {
+) -> Result<LegacyModContent, ExtractionError> {
     let title = the_mod.name().to_owned();
     crate::run_update(on_file_read, move |cursive| {
         cursive.call_on_name("Loading part", |text: &mut TextView| {
@@ -184,7 +205,7 @@ fn extract_mod(
         "Mod {}: Data successfully extracted, calculating patch",
         the_mod.name()
     );
-    Ok(ModContent::new(the_mod.name(), original_data.diff(content)))
+    Ok(LegacyModContent::new(the_mod.name(), original_data.diff(content)))
 }
 
 fn extract_data(

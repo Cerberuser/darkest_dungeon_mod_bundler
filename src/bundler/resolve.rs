@@ -1,6 +1,6 @@
 use super::diff::{
     Conflict, Conflicts, DataNode, DataNodeContent, DataTree, DataTreeExt, DiffNode, DiffNodeKind,
-    DiffTree, DiffTreeExt, DiffTreesExt, LineChange, LineModification, LinesChangeset, ModContent,
+    DiffTree, DiffTreeExt, DiffTreesExt, LineChange, LineModification, LinesChangeset, LegacyModContent,
 };
 use crossbeam_channel::bounded;
 use cursive::{
@@ -53,8 +53,8 @@ pub fn resolve(sink: &mut cursive::CbSink, conflicts: Conflicts) -> DiffTree {
 
 pub fn merge_resolved(merged: DiffTree, resolved: DiffTree) -> DiffTree {
     let (merged, conflicts) = vec![
-        ModContent::new("merged", merged),
-        ModContent::new("resolved", resolved),
+        LegacyModContent::new("merged", merged),
+        LegacyModContent::new("resolved", resolved),
     ]
     .into_iter()
     .merge(None);
@@ -304,7 +304,7 @@ Please choose one you wish to use as basic one.
     let (merged, conflicts) = data
         .into_iter()
         .map(|(name, content)| {
-            ModContent::new(
+            LegacyModContent::new(
                 name.clone(),
                 base.diff(
                     vec![(target.clone(), DataNode::new(name, content))]
