@@ -11,14 +11,21 @@ pub enum BundlerError {
 
 #[derive(Debug, Error)]
 pub enum ExtractionError {
-    #[error("IO error encountered on path {1}")]
-    Io(#[source] std::io::Error, PathBuf),
+    #[error("IO error encountered on path {1} {}", .2.as_ref().map(|s| format!("({})", s)).unwrap_or("".into()))]
+    Io(#[source] std::io::Error, PathBuf, Option<String>),
 }
 
+#[macro_export]
+macro_rules! io_to_extraction {
+    ($path:expr) => {{
+        let path = $path.into();
+        move |err| crate::bundler::error::ExtractionError::Io(err, path, Some(format!("file: {}, line: {}", file!(), line!())))
+    }};
+}
 impl ExtractionError {
     pub fn from_io(path: impl Into<PathBuf>) -> impl FnOnce(std::io::Error) -> Self {
         let path = path.into();
-        |err| Self::Io(err, path)
+        |err| Self::Io(err, path, None)
     }
 }
 

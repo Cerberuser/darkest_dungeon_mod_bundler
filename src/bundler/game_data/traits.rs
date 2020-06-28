@@ -113,14 +113,14 @@ pub trait Loadable: Sized {
 macro_rules! load {
     ($on_load:expr, $root_path:expr) => {{
         let root_path = $root_path.as_ref();
-        Self::prepare_list(root_path).map_err(ExtractionError::from_io(root_path))?
+        Self::prepare_list(root_path).map_err(crate::io_to_extraction!(root_path))?
             .into_iter()
             .map(move |full_path| {
                 debug!("Starting loading from path {:?}", full_path);
-                let path = rel_path(root_path, &full_path).map_err(ExtractionError::from_io(&full_path))?;
+                let path = rel_path(root_path, &full_path).map_err(crate::io_to_extraction!(&full_path))?;
                 debug!("Calculated relative path: {:?}", path);
                 $on_load(path.to_string_lossy().to_string());
-                let data = Self::load_raw(&full_path).map_err(ExtractionError::from_io(&full_path))?;
+                let data = Self::load_raw(&full_path).map_err(crate::io_to_extraction!(&full_path))?;
                 Ok((path, data))
             })
     }};

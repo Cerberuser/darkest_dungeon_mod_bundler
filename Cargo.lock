@@ -201,6 +201,7 @@ dependencies = [
  "cursive",
  "difference",
  "indoc",
+ "lazy_static",
  "log",
  "roxmltree",
  "serde",
@@ -208,7 +209,6 @@ dependencies = [
  "serde_json",
  "simplelog",
  "thiserror",
- "xml-rs",
 ]
 
 [[package]]

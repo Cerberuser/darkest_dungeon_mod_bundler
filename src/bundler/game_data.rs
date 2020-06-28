@@ -114,9 +114,7 @@ pub fn load_data(
         };
     }
     load! {
-        ActivityLogImage,
-        AudioData,
-        CampaignData,
+        BinaryData,
         HeroInfo,
         HeroBinary,
         StringsTable,
