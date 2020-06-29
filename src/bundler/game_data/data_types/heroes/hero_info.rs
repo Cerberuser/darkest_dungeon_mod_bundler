@@ -1,14 +1,15 @@
 use crate::bundler::{
-    diff::{Patch, DataMap},
+    diff::{DataMap, Patch, Conflicts},
     game_data::{
         file_types::{darkest_parser, DarkestEntry},
         BTreeMapExt, BTreeMappable, BTreePatchable, BTreeSetable, Loadable,
     },
-    loader::utils::{collect_paths, ends_with}, ModFileChange,
+    loader::utils::{collect_paths, ends_with},
+    ModFileChange,
 };
 use combine::EasyParser;
-use std::{collections::HashMap, convert::TryInto, num::ParseFloatError};
 use log::debug;
+use std::{collections::HashMap, convert::TryInto, num::ParseFloatError};
 
 fn parse_percent(value: &str) -> Result<f32, ParseFloatError> {
     if value.ends_with('%') {
@@ -33,6 +34,24 @@ pub struct HeroInfo {
     modes: Modes,
     incompatible_party_member: Incompatibilities,
     death_reaction: DeathReaction,
+    other: HashMap<(String, String), Vec<String>>,
+}
+
+#[derive(Clone, Debug)]
+pub struct HeroOverride {
+    id: String,
+    resistances: Option<Resistances>,
+    weapons: Option<Weapons>,
+    armours: Option<Armours>,
+    skills: Option<Skills>,
+    riposte_skill: Option<Skill>,
+    move_skill: Option<MoveSkill>,
+    tags: Vec<String>,
+    extra_stack_limit: Vec<String>,
+    deaths_door: Option<DeathsDoor>,
+    modes: Option<Modes>,
+    incompatible_party_member: Option<Incompatibilities>,
+    death_reaction: Option<DeathReaction>,
     other: HashMap<(String, String), Vec<String>>,
 }
 
@@ -69,18 +88,87 @@ impl BTreeMappable for HeroInfo {
     }
 }
 
-impl BTreePatchable for HeroInfo {
-    fn merge_patches(
-        &self,
-        patches: impl IntoIterator<Item = ModFileChange>,
-    ) -> (Patch, Vec<ModFileChange>) {
-        for patch in patches {
-            debug!("{:?}", patch);
+impl BTreeMappable for HeroOverride {
+    fn to_map(&self) -> DataMap {
+        let mut out = DataMap::new();
+        let mut inner = DataMap::new();
+
+        if let Some(resistances) = &self.resistances {
+            inner.extend_prefixed("resistances", resistances.to_map());
         }
-        todo!()
+        if let Some(weapons) = &self.weapons {
+            inner.extend_prefixed("weapons", weapons.to_map());
+        }
+        if let Some(armours) = &self.armours {
+            inner.extend_prefixed("armours", armours.to_map());
+        }
+        if let Some(skills) = &self.skills {
+            inner.extend_prefixed("skills", skills.to_map());
+        }
+        if let Some(riposte_skill) = &self.riposte_skill {
+            inner.extend_prefixed("riposte_skill", riposte_skill.to_map());
+        }
+        if let Some(move_skill) = &self.move_skill {
+            inner.extend_prefixed("move_skill", move_skill.to_map());
+        }
+        inner.extend_prefixed("tags", self.tags.to_set());
+        inner.extend_prefixed("extra_stack_limit", self.extra_stack_limit.to_set());
+        if let Some(deaths_door) = &self.deaths_door {
+            inner.extend_prefixed("deaths_door", deaths_door.to_map());
+        }
+        if let Some(modes) = &self.modes {
+            inner.extend_prefixed("modes", modes.to_map());
+        }
+        if let Some(incompatible_party_member) = &self.incompatible_party_member {
+            inner.extend_prefixed(
+                "incompatible_party_member",
+                incompatible_party_member.to_map(),
+            );
+        }
+        if let Some(death_reaction) = &self.death_reaction {
+            inner.extend_prefixed("death_reaction", death_reaction.to_map());
+        }
+        for (key, value) in &self.other {
+            let mut intermid = DataMap::new();
+            intermid.extend_prefixed(&key.1, value.to_set());
+            let mut intermid_outer = DataMap::new();
+            intermid_outer.extend_prefixed(&key.0, intermid);
+            inner.extend_prefixed("other", intermid_outer);
+        }
+
+        out.extend_prefixed(&self.id, inner);
+        out
     }
+}
+
+impl BTreePatchable for HeroInfo {
     fn apply_patch(&mut self, patch: Patch) -> Result<(), ()> {
         debug!("{:?}", patch);
+        todo!()
+    }
+    fn try_merge_patches(
+        &self,
+        patches: impl IntoIterator<Item = ModFileChange>,
+    ) -> (Patch, Conflicts) {
+        todo!()
+    }
+    fn ask_for_resolve(&self, sink: &mut cursive::CbSink, patches: Conflicts) -> Patch {
+        todo!()
+    }
+}
+
+impl BTreePatchable for HeroOverride {
+    fn apply_patch(&mut self, patch: Patch) -> Result<(), ()> {
+        debug!("{:?}", patch);
+        todo!()
+    }
+    fn try_merge_patches(
+        &self,
+        patches: impl IntoIterator<Item = ModFileChange>,
+    ) -> (Patch, Conflicts) {
+        todo!()
+    }
+    fn ask_for_resolve(&self, sink: &mut cursive::CbSink, patches: Conflicts) -> Patch {
         todo!()
     }
 }
@@ -170,6 +258,103 @@ impl Loadable for HeroInfo {
             death_reaction: DeathReaction::from_entries(death_reaction),
             other,
         })
+    }
+}
+
+impl Loadable for HeroOverride {
+    fn prepare_list(root_path: &std::path::Path) -> std::io::Result<Vec<std::path::PathBuf>> {
+        let path = root_path.join("heroes");
+        if path.exists() {
+            collect_paths(&path, |path| Ok(ends_with(path, ".override.darkest")))
+        } else {
+            Ok(vec![])
+        }
+    }
+    fn load_raw(path: &std::path::Path) -> std::io::Result<Self> {
+        let id = path
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .split('.')
+            .next()
+            .unwrap()
+            .to_string();
+
+        let darkest_file = std::fs::read_to_string(path)?;
+        let (darkest_file, rest) = darkest_parser().easy_parse(darkest_file.as_str()).unwrap();
+        debug_assert_eq!(rest, "");
+
+        // OK, now let's get these parts out...
+        let mut resistances = None;
+        let mut weapons = vec![];
+        let mut armours = vec![];
+        let mut skills = vec![];
+        let mut riposte_skill = vec![];
+        let mut move_skill = None;
+        let mut tags = vec![];
+        let mut extra_stack_limit = vec![];
+        let mut deaths_door = None;
+        let mut modes = vec![];
+        let mut incompatible_party_member = vec![];
+        let mut death_reaction = vec![];
+        let mut other = HashMap::new();
+
+        for (key, entry) in darkest_file {
+            match key.as_str() {
+                "resistances" => {
+                    let existing = resistances.replace(entry);
+                    debug_assert!(existing.is_none());
+                }
+                "weapon" => weapons.push(entry),
+                "armour" => armours.push(entry),
+                "combat_skill" => skills.push(entry),
+                "riposte_skill" => riposte_skill.push(entry),
+                "combat_move_skill" => {
+                    let existing = move_skill.replace(entry);
+                    debug_assert!(existing.is_none());
+                }
+                "tag" => tags.extend(entry.get("id").cloned().unwrap()),
+                "extra_stack_limit" => extra_stack_limit.extend(entry.get("id").cloned().unwrap()),
+                "deaths_door" => {
+                    let existing = deaths_door.replace(entry);
+                    debug_assert!(existing.is_none());
+                }
+                "mode" => modes.push(entry),
+                "incompatible_party_member" => incompatible_party_member.push(entry),
+                "death_reaction" => death_reaction.push(entry),
+                _ => {
+                    for (subkey, values) in entry {
+                        let existing = other.insert((key.clone(), subkey), values);
+                        debug_assert!(existing.is_none());
+                    }
+                }
+            }
+        }
+        Ok(Self {
+            id,
+            resistances: resistances.map(Resistances::from_entry),
+            weapons: opt_vec(weapons).map(Weapons::from_entries),
+            armours: opt_vec(armours).map(Armours::from_entries),
+            skills: opt_vec(skills).map(Skills::from_entries),
+            riposte_skill: opt_vec(riposte_skill).map(Skill::from_entries),
+            move_skill: move_skill.map(MoveSkill::from_entry),
+            tags,
+            extra_stack_limit,
+            deaths_door: deaths_door.map(DeathsDoor::from_entry),
+            modes: opt_vec(modes).map(Modes::from_entries),
+            incompatible_party_member: opt_vec(incompatible_party_member)
+                .map(Incompatibilities::from_entries),
+            death_reaction: opt_vec(death_reaction).map(DeathReaction::from_entries),
+            other,
+        })
+    }
+}
+
+fn opt_vec<T>(v: Vec<T>) -> Option<Vec<T>> {
+    if v.is_empty() {
+        None
+    } else {
+        Some(v)
     }
 }
 

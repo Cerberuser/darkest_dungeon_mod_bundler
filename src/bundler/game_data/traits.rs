@@ -5,7 +5,7 @@ use super::{
     },
     GameData, GameDataItem, GameDataValue, StructuredItem,
 };
-use crate::bundler::loader::utils::rel_path;
+use crate::bundler::{diff::Conflicts, loader::utils::rel_path};
 use log::*;
 use std::{
     collections::BTreeMap,
@@ -15,18 +15,14 @@ use std::{
 pub trait BTreeLinkedMappable: Sized + Clone {
     fn from_iter(_: impl IntoIterator<Item = String>) -> Self;
     fn list(&self) -> &[String];
-    fn linked_map(&self) -> BTreeMap<String, Option<&str>> {
-        let mut cur = None::<&String>;
+    fn linked_map(&self) -> BTreeMap<Option<String>, Option<&str>> {
+        let mut cur: Option<&String> = None;
         let mut map = BTreeMap::new();
         for item in self.list() {
-            if let Some(prev) = cur {
-                map.insert(prev.into(), Some(item.as_str()));
-            }
+            map.insert(cur.cloned(), Some(item.as_str()));
             cur = Some(item);
         }
-        if let Some(last) = cur {
-            map.insert(last.clone(), None);
-        }
+        map.insert(cur.cloned(), None);
         map
     }
 }
@@ -57,8 +53,24 @@ pub trait BTreeMappable: Sized + Clone {
 pub trait BTreePatchable: Sized + Clone {
     fn merge_patches(
         &self,
+        sink: &mut cursive::CbSink,
         patches: impl IntoIterator<Item = ModFileChange>,
-    ) -> (Patch, Vec<ModFileChange>);
+    ) -> Patch {
+        let (merged, unmerged) = self.try_merge_patches(patches);
+        let resolved = self.ask_for_resolve(sink, unmerged);
+        let (merged, unmerged) = self.try_merge_patches(vec![
+            ("merged".into(), merged),
+            ("resolved".into(), resolved),
+        ]);
+        debug_assert!(unmerged.is_empty());
+        merged
+    }
+
+    fn try_merge_patches(
+        &self,
+        patches: impl IntoIterator<Item = ModFileChange>,
+    ) -> (Patch, Conflicts);
+    fn ask_for_resolve(&self, sink: &mut cursive::CbSink, conflicts: Conflicts) -> Patch;
     fn apply_patch(&mut self, patch: Patch) -> Result<(), ()>; // TODO error!
 }
 
@@ -66,23 +78,13 @@ impl<T: BTreeLinkedMappable> BTreeMappable for T {
     fn to_map(&self) -> DataMap {
         self.linked_map()
             .into_iter()
-            .map(|(key, value)| (vec![key], GameDataValue::Next(value.map(|s| s.into()))))
+            .map(|(key, value)| {
+                (
+                    key.into_iter().collect(),
+                    GameDataValue::Next(value.map(|s| s.into())),
+                )
+            })
             .collect()
-    }
-}
-impl<T: BTreeLinkedMappable> BTreePatchable for T {
-    fn merge_patches(
-        &self,
-        patches: impl IntoIterator<Item = ModFileChange>,
-    ) -> (Patch, Vec<ModFileChange>) {
-        for patch in patches {
-            debug!("{:?}", patch);
-        }
-        todo!()
-    }
-    fn apply_patch(&mut self, patch: Patch) -> Result<(), ()> {
-        debug!("{:?}", patch);
-        todo!()
     }
 }
 

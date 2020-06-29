@@ -1,9 +1,14 @@
 use super::super::{BTreeMappable, BTreePatchable, Loadable};
 use crate::bundler::{
-    diff::{DataMap, Patch},
-    game_data::BTreeMapExt,
+    diff::{Conflicts, DataMap, ItemChange, Patch},
+    game_data::{BTreeMapExt, GameDataValue},
     loader::utils::{collect_paths, has_ext},
     ModFileChange,
+};
+use crossbeam_channel::bounded;
+use cursive::{
+    traits::{Nameable, Resizable},
+    views::{Button, Dialog, LinearLayout, Panel, TextArea, TextView},
 };
 use log::*;
 use serde::{Deserialize, Serialize};
@@ -24,21 +29,136 @@ impl BTreeMappable for StringsTable {
         out
     }
 }
+
 impl BTreePatchable for StringsTable {
-    fn merge_patches(
+    fn apply_patch(&mut self, patch: Patch) -> Result<(), ()> {
+        for (path, value) in patch {
+            if path.len() != 2 {
+                return Err(());
+            }
+            let language = path.get(0).unwrap();
+            let entry_key = path.get(1).unwrap();
+            let lang_table = &mut self.0.get_mut(language).ok_or(())?.0;
+            match value {
+                ItemChange::Set(value) => match value {
+                    GameDataValue::String(value) => lang_table.insert(entry_key.clone(), value),
+                    _ => return Err(()),
+                },
+                ItemChange::Removed => lang_table.remove(entry_key),
+            };
+        }
+        Ok(())
+    }
+
+    fn try_merge_patches(
         &self,
         patches: impl IntoIterator<Item = ModFileChange>,
-    ) -> (Patch, Vec<ModFileChange>) {
-        for patch in patches {
-            debug!("{:?}", patch);
+    ) -> (Patch, Conflicts) {
+        let mut merged = Patch::new();
+        let mut unmerged = Conflicts::new();
+
+        // TODO - this is almost the same as `regroup` in `resolve` module
+        let mut changes = HashMap::new();
+        for (mod_name, mod_changes) in patches {
+            for (path, item) in mod_changes {
+                // False positive from clippy - https://github.com/rust-lang/rust-clippy/issues/5693
+                #[allow(clippy::or_fun_call)]
+                changes
+                    .entry(path)
+                    .or_insert(vec![])
+                    .push((mod_name.clone(), item));
+            }
         }
-        todo!()
+        for (path, changes) in changes {
+            debug_assert!(!changes.is_empty());
+            if changes.len() == 1 {
+                merged.insert(path, changes.into_iter().next().unwrap().1);
+            } else {
+                for change in changes {
+                    unmerged.entry(path.clone()).or_default().push(change)
+                }
+            }
+        }
+        (merged, unmerged)
     }
-    fn apply_patch(&mut self, patch: Patch) -> Result<(), ()> {
-        debug!("{:?}", patch);
-        todo!()
+
+    fn ask_for_resolve(&self, sink: &mut cursive::CbSink, conflicts: Conflicts) -> Patch {
+        let mut patch = Patch::new();
+        for (path, conflict) in conflicts {
+            debug_assert!(path.len() == 2);
+            let language = path.get(0).unwrap().clone();
+            let entry_key = path.get(1).unwrap().clone();
+
+            let (sender, receiver) = bounded(0);
+            crate::run_update(sink, move |cursive| {
+                let mut layout = LinearLayout::vertical();
+                conflict.into_iter().for_each(|(name, line)| {
+                    layout.add_child(
+                        LinearLayout::horizontal()
+                            .child(
+                                Panel::new(match &line {
+                                    ItemChange::Set(GameDataValue::String(value)) => {
+                                        TextView::new(value.clone())
+                                    }
+                                    ItemChange::Removed => TextView::new("<Removed>"),
+                                    otherwise => panic!(
+                                        "Unexpected value in localization table: {:?}",
+                                        otherwise
+                                    ),
+                                })
+                                .title(name),
+                            )
+                            .child(Button::new("Move to input", move |cursive| {
+                                cursive.call_on_name("Line resolve edit", |edit: &mut TextArea| {
+                                    edit.set_content(match &line {
+                                        ItemChange::Set(GameDataValue::String(value)) => {
+                                            value.clone()
+                                        }
+                                        ItemChange::Removed => "<Removed>".into(),
+                                        otherwise => panic!(
+                                            "Unexpected value in localization table: {:?}",
+                                            otherwise
+                                        ),
+                                    })
+                                });
+                            })),
+                    )
+                });
+                let resolve_sender = sender.clone();
+                crate::push_screen(
+                    cursive,
+                    Dialog::around(
+                        layout.child(TextArea::new().with_name("Line resolve edit").full_width()),
+                    )
+                    .title(format!(
+                        "Resolving entry: language = {}, entry = {}",
+                        language, entry_key,
+                    ))
+                    .button("Resolve", move |cursive| {
+                        let value = cursive
+                            .call_on_name("Line resolve edit", |edit: &mut TextArea| {
+                                edit.get_content().to_owned()
+                            })
+                            .unwrap();
+                        cursive.pop_layer();
+                        resolve_sender.send(ItemChange::Set(value.into())).unwrap();
+                    })
+                    .button("Remove", move |cursive| {
+                        cursive.pop_layer();
+                        sender.send(ItemChange::Removed).unwrap();
+                    })
+                    .h_align(cursive::align::HAlign::Center),
+                );
+            });
+            let choice = receiver
+                .recv()
+                .expect("Sender was dropped without sending anything");
+            patch.insert(path, choice);
+        }
+        patch
     }
 }
+
 impl Loadable for StringsTable {
     fn prepare_list(root_path: &std::path::Path) -> std::io::Result<Vec<std::path::PathBuf>> {
         let path = root_path.join("localization");
@@ -53,7 +173,8 @@ impl Loadable for StringsTable {
 
         let mut xml_raw = vec![];
         std::fs::File::open(path)?.read_to_end(&mut xml_raw)?;
-        // <HACK> Workaround: localization is sometimes invalid UTF-8
+
+        // <HACK> Workaround: localization is sometimes invalid UTF-8.
         let mut xml = match String::from_utf8_lossy(&xml_raw) {
             Cow::Borrowed(s) => String::from(s),
             Cow::Owned(s) => {
@@ -68,9 +189,9 @@ impl Loadable for StringsTable {
                 {
                     debug!(
                         "...{}{}{}...",
-                        &capture[1],
+                        &capture[1].escape_debug(),
                         std::char::REPLACEMENT_CHARACTER,
-                        &capture[2]
+                        &capture[2].escape_debug()
                     );
                 }
                 s
@@ -99,6 +220,8 @@ impl Loadable for StringsTable {
                 "".to_string()
             })
             .into();
+
+        // OK, hacks are ended for now, let's load
         let document = roxmltree::Document::parse(&xml)
             .unwrap_or_else(|err| panic!("Malformed localization XML {:?}: {:?}", path, err));
         let root = document.root_element();

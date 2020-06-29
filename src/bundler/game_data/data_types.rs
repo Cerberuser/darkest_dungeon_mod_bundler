@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 mod heroes;
 mod localization;
 
-pub use heroes::{HeroBinary, HeroInfo};
+pub use heroes::{HeroBinary, HeroInfo, HeroOverride};
 pub use localization::StringsTable;
 
 pub struct BinaryData(PathBuf);

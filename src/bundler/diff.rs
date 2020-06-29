@@ -13,6 +13,7 @@ pub enum ItemChange {
 }
 
 pub type Patch = BTreeMap<Vec<String>, ItemChange>;
+pub type Conflicts = BTreeMap<Vec<String>, Vec<(String, ItemChange)>>;
 
 pub fn diff(original: DataMap, patched: DataMap) -> Patch {
     let mut out = Patch::new();

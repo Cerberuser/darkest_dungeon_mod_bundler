@@ -1,11 +1,11 @@
 use crate::bundler::{
     game_data::{Binary, Loadable},
-    loader::utils::{collect_paths, ends_with},
+    loader::utils::{collect_paths, has_ext},
 };
 use std::path::{Path, PathBuf};
 
 mod hero_info;
-pub use hero_info::HeroInfo;
+pub use hero_info::{HeroInfo, HeroOverride};
 
 pub struct HeroBinary(PathBuf);
 impl Binary for HeroBinary {
@@ -21,7 +21,7 @@ impl Loadable for HeroBinary {
     fn prepare_list(root_path: &Path) -> std::io::Result<Vec<PathBuf>> {
         let path = root_path.join("heroes");
         if path.exists() {
-            collect_paths(&path, |path| Ok(!ends_with(path, ".info.darkest")))
+            collect_paths(&path, |path| Ok(!has_ext(path, "darkest")))
         } else {
             Ok(vec![])
         }

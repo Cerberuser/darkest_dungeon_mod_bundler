@@ -11,7 +11,7 @@ mod traits;
 pub use traits::*;
 
 use super::{
-    diff::{DataMap, Patch},
+    diff::{DataMap, Patch, Conflicts},
     ExtractionError, ModFileChange,
 };
 
@@ -65,14 +65,22 @@ macro_rules! structured {
             }
         }
         impl BTreePatchable for StructuredItem {
-            fn merge_patches(&self, patches: impl IntoIterator<Item = ModFileChange>) -> (Patch, Vec<ModFileChange>) {
-                match self {
-                    $(Self::$ty(value) => value.merge_patches(patches)),+
-                }
-            }
             fn apply_patch(&mut self, patch: Patch) -> Result<(), ()> {
                 match self {
                     $(Self::$ty(value) => value.apply_patch(patch)),+
+                }
+            }
+            fn try_merge_patches(
+                &self,
+                patches: impl IntoIterator<Item = ModFileChange>,
+            ) -> (Patch, Conflicts) {
+                match self {
+                    $(Self::$ty(value) => value.try_merge_patches(patches)),+
+                }
+            }
+            fn ask_for_resolve(&self, sink: &mut cursive::CbSink, patches: Conflicts) -> Patch {
+                match self {
+                    $(Self::$ty(value) => value.ask_for_resolve(sink, patches)),+
                 }
             }
         }
@@ -88,6 +96,7 @@ macro_rules! structured {
 
 structured! {
     HeroInfo,
+    HeroOverride,
     StringsTable,
 }
 
@@ -106,22 +115,27 @@ impl BTreeMappable for GameDataItem {
     }
 }
 impl BTreePatchable for GameDataItem {
-    fn merge_patches(
-        &self,
-        patches: impl IntoIterator<Item = ModFileChange>,
-    ) -> (Patch, Vec<ModFileChange>) {
-        match self {
-            GameDataItem::Binary(_) => panic!("Attempt to patch the binary item, probably a bug"),
-            GameDataItem::Structured(item) => item.merge_patches(patches),
-        }
-    }
     fn apply_patch(&mut self, patch: Patch) -> Result<(), ()> {
         match self {
             GameDataItem::Binary(_) => panic!("Attempt to patch the binary item, probably a bug"),
             GameDataItem::Structured(item) => item.apply_patch(patch),
         }
     }
-    
+    fn try_merge_patches(
+        &self,
+        patches: impl IntoIterator<Item = ModFileChange>,
+    ) -> (Patch, Conflicts) {
+        match self {
+            GameDataItem::Binary(_) => panic!("Attempt to patch the binary item, probably a bug"),
+            GameDataItem::Structured(item) => item.try_merge_patches(patches),
+        }
+    }
+    fn ask_for_resolve(&self, sink: &mut cursive::CbSink, patches: Conflicts) -> Patch {
+        match self {
+            GameDataItem::Binary(_) => panic!("Attempt to patch the binary item, probably a bug"),
+            GameDataItem::Structured(item) => item.ask_for_resolve(sink, patches),
+        }
+    }
 }
 
 pub type GameData = BTreeMap<PathBuf, GameDataItem>;
@@ -142,6 +156,7 @@ pub fn load_data(
     load! {
         BinaryData,
         HeroInfo,
+        HeroOverride,
         HeroBinary,
         StringsTable,
     }

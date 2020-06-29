@@ -16,16 +16,12 @@ use cursive::{
 };
 use diff::Patch;
 use error::ExtractionError;
-use game_data::{BTreeMappable, BTreePatchable, GameDataItem};
+use game_data::{BTreeMappable, BTreePatchable, GameDataItem, GameData};
 use log::*;
-use std::{collections::HashMap, fs::read_dir};
+use std::{collections::HashMap, fs::read_dir, path::Path};
 use thiserror::Error;
 
-#[derive(Clone, Debug)]
-pub struct ModFileChange {
-    mod_name: String,
-    change: Patch,
-}
+pub type ModFileChange = (String, Patch);
 
 #[derive(Debug, Error)]
 #[error("Background thread panicked, stopping: {0}")]
@@ -101,40 +97,8 @@ fn do_bundle(
         });
     });
 
-    let mut on_load = on_file_read.clone();
-    let on_load = move |s: String| set_file_updated(&mut on_load, "Reading", s);
-
     info!("Extracting DLC data");
-    let dlc_path = path.join("dlc");
-    for entry in read_dir(&dlc_path).map_err(ExtractionError::from_io(&dlc_path))? {
-        let entry = entry.map_err(ExtractionError::from_io(&dlc_path))?;
-        let path = entry.path();
-        if entry
-            .metadata()
-            .map_err(ExtractionError::from_io(&path))?
-            .is_dir()
-        {
-            info!("Reading DLC: {:?}", path);
-            let dlc_dir_name = path
-                .file_name()
-                .map(std::ffi::OsStr::to_string_lossy)
-                .unwrap_or_else(|| {
-                    warn!("No filename in DLC directory path - this must be a bug");
-                    "<INVALID>".into()
-                })
-                .to_string();
-            crate::run_update(on_file_read, |cursive| {
-                cursive
-                    .call_on_name("Loading part", |text: &mut TextView| {
-                        text.set_content(dlc_dir_name);
-                    })
-                    .unwrap();
-            });
-            data.extend(game_data::load_data(on_load.clone(), &path)?);
-        } else {
-            warn!("Found non-directory item in DLC folder: {:?}", path);
-        }
-    }
+    load_dlcs(&path.join("dlc"), &mut data, on_file_read)?;
     info!("DLC data extracted and merged into vanilla game");
 
     crate::run_update(on_file_read, |cursive| {
@@ -174,7 +138,7 @@ fn do_bundle(
         .map(|(name, content)| (name.clone(), content.text_added_mut()))
         .collect();
     let text_added = resolve::resolve_added_text(on_file_read, text_added);
-    // This added files are treated "as if" they were in the unmodded game
+    // These added files are treated "as if" they were in the unmodded game
     data.extend(
         text_added
             .iter()
@@ -190,7 +154,7 @@ fn do_bundle(
         .iter_mut()
         .map(|(name, content)| (name.clone(), content.text_modified_mut()))
         .collect();
-    let text_modified = resolve::resolve_modified_text(on_file_read, text_modified);
+    let text_modified = resolve::resolve_modified_text(on_file_read, &data, text_modified);
 
     // Merge every changes into the single tree
     let mut mods_data: game_data::GameData = binaries
@@ -252,7 +216,15 @@ fn load_mod(
 
     let mut on_load = on_file_read.clone();
     let on_load = move |s: String| set_file_updated(&mut on_load, "Reading", s);
-    let content = game_data::load_data(on_load, &the_mod.path)?;
+    let mut content = game_data::load_data(on_load, &the_mod.path)?;
+    // <HACK> This looks like a bad practice, but I've run into mod which does exactly that
+    let dlc_path = the_mod.path.join("dlc");
+    if dlc_path.exists() {
+        warn!("File contains DLC-mapped data; loading");
+        load_dlcs(&dlc_path, &mut content, on_file_read)?;
+    }
+    let content = content;
+
     info!(
         "Mod {}: Data successfully extracted, calculating patch",
         the_mod.name()
@@ -306,6 +278,42 @@ fn load_mod(
     }
 
     Ok(ModContent::build(binary, text_added, text_modified))
+}
+
+fn load_dlcs(dlc_path: &Path, data: &mut GameData, sink: &mut cursive::CbSink) -> Result<(), ExtractionError> {
+    let mut on_load = sink.clone();
+    let on_load = move |s: String| set_file_updated(&mut on_load, "Reading", s);
+
+    for entry in read_dir(&dlc_path).map_err(ExtractionError::from_io(&dlc_path))? {
+        let entry = entry.map_err(ExtractionError::from_io(&dlc_path))?;
+        let path = entry.path();
+        if entry
+            .metadata()
+            .map_err(ExtractionError::from_io(&path))?
+            .is_dir()
+        {
+            info!("Reading DLC: {:?}", path);
+            let dlc_dir_name = path
+                .file_name()
+                .map(std::ffi::OsStr::to_string_lossy)
+                .unwrap_or_else(|| {
+                    warn!("No filename in DLC directory path - this must be a bug");
+                    "<INVALID>".into()
+                })
+                .to_string();
+            crate::run_update(sink, |cursive| {
+                cursive
+                    .call_on_name("Loading part", |text: &mut TextView| {
+                        text.set_content(dlc_dir_name);
+                    })
+                    .unwrap();
+            });
+            data.extend(game_data::load_data(on_load.clone(), &path)?);
+        } else {
+            warn!("Found non-directory item in DLC folder: {:?}", path);
+        }
+    };
+    Ok(())
 }
 
 // fn extract_data(

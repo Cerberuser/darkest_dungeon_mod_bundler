@@ -1,29 +1,19 @@
-use super::mod_content::{ModAddedTexts, ModBinaries, ModModifiedTexts};
+use super::{
+    game_data::{BTreePatchable, GameData},
+    mod_content::{ModAddedTexts, ModBinaries, ModModifiedTexts},
+};
 use crossbeam_channel::bounded;
 use cursive::views::{Dialog, LinearLayout, Panel, SelectView, TextView};
 use log::*;
 use std::collections::HashMap;
-use std::fmt::Debug;
+use std::{fmt::Debug, path::PathBuf};
 
 pub fn resolve_binaries(
     sink: &mut cursive::CbSink,
     data: HashMap<String, &mut ModBinaries>,
 ) -> ModBinaries {
     let mut out = ModBinaries::new();
-    // First, drain every input value and put it into the new hashmap - path-based, not mod-based.
-    let mut changes = HashMap::new();
-    for (mod_name, mod_changes) in data {
-        for (path, source) in mod_changes.drain() {
-            // False positive from clippy - https://github.com/rust-lang/rust-clippy/issues/5693
-            #[allow(clippy::or_fun_call)]
-            changes
-                .entry(path)
-                .or_insert(vec![])
-                .push((mod_name.clone(), source));
-        }
-    }
-    // Now, iterate over the resulting map.
-    for (path, changes) in changes {
+    for (path, changes) in regroup(data) {
         debug_assert!(!changes.is_empty());
         if changes.len() == 1 {
             out.insert(path, changes.into_iter().next().unwrap().1);
@@ -45,17 +35,77 @@ pub fn resolve_binaries(
 }
 
 pub fn resolve_added_text(
-    _sink: &mut cursive::CbSink,
-    _data: HashMap<String, &mut ModAddedTexts>,
+    sink: &mut cursive::CbSink,
+    data: HashMap<String, &mut ModAddedTexts>,
 ) -> ModAddedTexts {
-    todo!()
+    let mut out = ModAddedTexts::new();
+    for (path, changes) in regroup(data) {
+        debug_assert!(!changes.is_empty());
+        if changes.len() == 1 {
+            out.insert(path, changes.into_iter().next().unwrap().1);
+        } else {
+            // Conflict!
+            let choice = ask_for_resolve(
+                sink,
+                format!(
+                    "Multiple mods are attempting to create structured file {}.
+                    In this case, we create it based on the data from one mod and then
+                    let other mods patch it.
+                    
+                    If one of the mods is providing some functionality and others serve
+                    as \"patches\" or \"extensions\" to that functionality,
+                    choose this \"core\" mod now.
+                    Otherwise, choose the one which is the least important, as its data is
+                    likely to be overwritten in case of conflict.",
+                    path.to_string_lossy()
+                ),
+                changes,
+            );
+            out.insert(path, choice);
+        }
+    }
+    out
 }
 
 pub fn resolve_modified_text(
-    _sink: &mut cursive::CbSink,
-    _data: HashMap<String, &mut ModModifiedTexts>,
+    sink: &mut cursive::CbSink,
+    original: &GameData,
+    data: HashMap<String, &mut ModModifiedTexts>,
 ) -> ModModifiedTexts {
-    todo!()
+    let mut out = ModModifiedTexts::new();
+    for (path, changes) in regroup(data) {
+        debug_assert!(!changes.is_empty());
+        // As always, single change is immediately OK.
+        if changes.len() == 1 {
+            out.insert(path, changes.into_iter().next().unwrap().1);
+        } else {
+            // OK, now we have to ask the format itself... what will it do with multiple changes?
+            let base = original
+                .get(&path)
+                .expect("Attempt to change non-existing file");
+            let merged = base.merge_patches(sink, changes);
+            // ...and now, finally, insert them.
+            out.insert(path, merged);
+        }
+    }
+    out
+}
+
+fn regroup<T>(
+    input: HashMap<String, &mut HashMap<PathBuf, T>>,
+) -> HashMap<PathBuf, Vec<(String, T)>> {
+    let mut changes: HashMap<PathBuf, Vec<(String, T)>> = HashMap::new();
+    for (mod_name, mod_changes) in input {
+        for (path, item) in mod_changes.drain() {
+            // False positive from clippy - https://github.com/rust-lang/rust-clippy/issues/5693
+            #[allow(clippy::or_fun_call)]
+            changes
+                .entry(path)
+                .or_insert(vec![])
+                .push((mod_name.clone(), item));
+        }
+    }
+    changes
 }
 
 // pub fn resolve(sink: &mut cursive::CbSink, conflicts: Conflicts) -> DiffTree {
