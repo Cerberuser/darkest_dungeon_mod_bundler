@@ -56,7 +56,7 @@ impl BTreeMappable for RestMap {
 macro_rules! structured {
     ($($ty:ident),+ $(,)?) => {
         #[derive(Clone, Debug)]
-        pub enum StructuredItem { $($ty(data_types::$ty)),+ }
+        pub enum StructuredItem { $($ty(Box<data_types::$ty>)),+ }
         impl BTreeMappable for StructuredItem {
             fn to_map(&self) -> DataMap {
                 match self {
@@ -79,7 +79,7 @@ macro_rules! structured {
         $(
             impl From<data_types::$ty> for StructuredItem {
                 fn from(item: data_types::$ty) -> Self {
-                    Self::$ty(item)
+                    Self::$ty(Box::new(item))
                 }
             }
         )+

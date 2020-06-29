@@ -45,15 +45,15 @@ pub fn resolve_binaries(
 }
 
 pub fn resolve_added_text(
-    sink: &mut cursive::CbSink,
-    data: HashMap<String, &mut ModAddedTexts>,
+    _sink: &mut cursive::CbSink,
+    _data: HashMap<String, &mut ModAddedTexts>,
 ) -> ModAddedTexts {
     todo!()
 }
 
 pub fn resolve_modified_text(
-    sink: &mut cursive::CbSink,
-    data: HashMap<String, &mut ModModifiedTexts>,
+    _sink: &mut cursive::CbSink,
+    _data: HashMap<String, &mut ModModifiedTexts>,
 ) -> ModModifiedTexts {
     todo!()
 }

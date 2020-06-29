@@ -8,8 +8,7 @@ use super::{
 use crate::bundler::loader::utils::rel_path;
 use log::*;
 use std::{
-    collections::{BTreeMap, HashMap},
-    io::Result as IoResult,
+    collections::BTreeMap,
     path::{Path, PathBuf},
 };
 
@@ -76,19 +75,15 @@ impl<T: BTreeLinkedMappable> BTreePatchable for T {
         &self,
         patches: impl IntoIterator<Item = ModFileChange>,
     ) -> (Patch, Vec<ModFileChange>) {
+        for patch in patches {
+            debug!("{:?}", patch);
+        }
         todo!()
     }
     fn apply_patch(&mut self, patch: Patch) -> Result<(), ()> {
+        debug!("{:?}", patch);
         todo!()
     }
-}
-
-pub fn btree_vec(items: &[impl BTreeMappable]) -> DataMap {
-    let mut map = DataMap::new();
-    for item in items {
-        map.extend(item.to_map());
-    }
-    map
 }
 
 // Supply trait, to simplify common operation

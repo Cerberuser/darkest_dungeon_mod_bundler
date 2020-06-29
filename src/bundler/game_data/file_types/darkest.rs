@@ -8,7 +8,7 @@ use combine::{
     },
     sep_by1, ParseError, ParseResult, Parser, Stream, StreamOnce,
 };
-use std::{borrow::Borrow, hash::Hash, marker::PhantomData, ops::Deref, fmt::Display};
+use std::{borrow::Borrow, fmt::Display, hash::Hash, marker::PhantomData};
 
 #[derive(Clone, Debug, Default)]
 pub struct DarkestEntry(HashMap<String, Vec<String>>);
@@ -76,7 +76,7 @@ macro_rules! parse_and_do {
         match optional($parser).parse($input) {
             Ok((ret, rest)) => {
                 $input = rest;
-                if let Some(_) = ret {
+                if ret.is_some() {
                     $then;
                 }
             }
@@ -130,7 +130,7 @@ where
             parse_and_do!(input with eof() => break);
             // If we can parse the next entry - we're also done.
             // TODO: find more idiomatic way!
-            if let Err(_) = not_followed_by(DarkestEntry::key().map(|_| "next")).parse(&mut *input)
+            if not_followed_by(DarkestEntry::key().map(|_| "next")).parse(&mut *input).is_err()
             {
                 break;
             }

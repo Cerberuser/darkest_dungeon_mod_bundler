@@ -5,9 +5,9 @@ use crate::bundler::{
     loader::utils::{collect_paths, has_ext},
     ModFileChange,
 };
-use serde::{Deserialize, Serialize};
-use std::{io::Read, collections::HashMap, borrow::Cow};
 use log::*;
+use serde::{Deserialize, Serialize};
+use std::{borrow::Cow, collections::HashMap, io::Read};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct StringsTable(HashMap<String, LanguageTable>);
@@ -29,9 +29,13 @@ impl BTreePatchable for StringsTable {
         &self,
         patches: impl IntoIterator<Item = ModFileChange>,
     ) -> (Patch, Vec<ModFileChange>) {
+        for patch in patches {
+            debug!("{:?}", patch);
+        }
         todo!()
     }
     fn apply_patch(&mut self, patch: Patch) -> Result<(), ()> {
+        debug!("{:?}", patch);
         todo!()
     }
 }
@@ -55,34 +59,48 @@ impl Loadable for StringsTable {
             Cow::Owned(s) => {
                 warn!("Got some invalid UTF-8; performed lossy conversion");
                 debug!("Context:");
-                for capture in regex::Regex::new(&format!("(.{{0,10}}){}(.{{0, 10}})", std::char::REPLACEMENT_CHARACTER)).unwrap().captures_iter(&s) {
-                    debug!("...{}{}{}...", &capture[1], std::char::REPLACEMENT_CHARACTER, &capture[2]);
+                for capture in regex::Regex::new(&format!(
+                    "(.{{0,10}}){}(.{{0, 10}})",
+                    std::char::REPLACEMENT_CHARACTER
+                ))
+                .unwrap()
+                .captures_iter(&s)
+                {
+                    debug!(
+                        "...{}{}{}...",
+                        &capture[1],
+                        std::char::REPLACEMENT_CHARACTER,
+                        &capture[2]
+                    );
                 }
                 s
             }
         };
         // <HACK> Workaround: some localization files contain too big (non-existing) XML version.
         let decl = xml.lines().next().unwrap();
-        let version = regex::Regex::new(r#"<?xml version="(.*?)"(.*)>"#).unwrap().captures(decl);
-        match version {
-            Some(version) => {
-                let version = &version[1];
-                if version > "1.1" {
-                    warn!("Got too large XML version number; replacing declaration line");
-                    debug!("Original declaration line: {}", decl);
-                    debug!("Original version: {}", version);
-                    xml = String::from(r#"<?xml version="1.0" encoding="UTF-8"?>"#) + xml.splitn(2, '\n').nth(1).unwrap();
-                }
+        let version = regex::Regex::new(r#"<?xml version="(.*?)"(.*)>"#)
+            .unwrap()
+            .captures(decl);
+        if let Some(version) = version {
+            let version = &version[1];
+            if version > "1.1" {
+                warn!("Got too large XML version number; replacing declaration line");
+                debug!("Original declaration line: {}", decl);
+                debug!("Original version: {}", version);
+                xml = String::from(r#"<?xml version="1.0" encoding="UTF-8"?>"#)
+                    + xml.splitn(2, '\n').nth(1).unwrap();
             }
-            _ => {}
         }
         // <HACK> Workaround: some localization files contain invalid comments.
-        xml = regex::Regex::new("<!---(.*?)--->").unwrap().replace_all(&xml, |cap: &regex::Captures| {
-            warn!("Found invalid comment: {}", &cap[0]);
-            "".to_string()
-        }).into();
+        xml = regex::Regex::new("<!---(.*?)--->")
+            .unwrap()
+            .replace_all(&xml, |cap: &regex::Captures| {
+                warn!("Found invalid comment: {}", &cap[0]);
+                "".to_string()
+            })
+            .into();
         let document = roxmltree::Document::parse(&xml)
-            .expect(&format!("Malformed localization XML {:?}", path));
+            .unwrap_or_else(|err| panic!("Malformed localization XML {:?}: {:?}", path, err));
         let root = document.root_element();
         debug_assert_eq!(root.tag_name().name(), "root");
         for child in root.children() {

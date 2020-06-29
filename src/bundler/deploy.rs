@@ -1,7 +1,4 @@
-use super::{
-    diff::{DataNodeContent, DataTree},
-    error::DeploymentError, game_data::GameData,
-};
+use super::{error::DeploymentError, game_data::GameData};
 use crossbeam_channel::{bounded, Sender};
 use cursive::{
     traits::{Nameable, Resizable},
@@ -54,7 +51,9 @@ pub fn deploy(
 	<UploadMode>dont_submit</UploadMode>
 </project>"#,
         name,
-        mod_path.to_str().expect("Path to the mods directory is not valid UTF-8 - this won't work"),
+        mod_path
+            .to_str()
+            .expect("Path to the mods directory is not valid UTF-8 - this won't work"),
     );
     std::fs::write(&project_xml_path, project_xml)
         .map_err(DeploymentError::from_io(&project_xml_path))?;
@@ -63,7 +62,10 @@ pub fn deploy(
     for (path, item) in bundle {
         info!("Writing mod file to relative path {:?}", path);
         super::set_file_updated(sink, "Deploying", path.to_string_lossy());
-        todo!();
+        match item {
+            super::game_data::GameDataItem::Binary(_) => todo!(),
+            super::game_data::GameDataItem::Structured(_) => todo!(),
+        }
         // let (source, content) = item.into_parts();
         // let target = mod_path.join(path);
         // let dir = target.parent().unwrap();

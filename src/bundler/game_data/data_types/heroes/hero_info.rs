@@ -1,13 +1,14 @@
 use crate::bundler::{
-    diff::DataMap,
+    diff::{Patch, DataMap},
     game_data::{
         file_types::{darkest_parser, DarkestEntry},
         BTreeMapExt, BTreeMappable, BTreePatchable, BTreeSetable, Loadable,
     },
-    loader::utils::{collect_paths, ends_with},
+    loader::utils::{collect_paths, ends_with}, ModFileChange,
 };
 use combine::EasyParser;
 use std::{collections::HashMap, convert::TryInto, num::ParseFloatError};
+use log::debug;
 
 fn parse_percent(value: &str) -> Result<f32, ParseFloatError> {
     if value.ends_with('%') {
@@ -71,14 +72,15 @@ impl BTreeMappable for HeroInfo {
 impl BTreePatchable for HeroInfo {
     fn merge_patches(
         &self,
-        patches: impl IntoIterator<Item = crate::bundler::ModFileChange>,
-    ) -> (
-        crate::bundler::diff::Patch,
-        Vec<crate::bundler::ModFileChange>,
-    ) {
+        patches: impl IntoIterator<Item = ModFileChange>,
+    ) -> (Patch, Vec<ModFileChange>) {
+        for patch in patches {
+            debug!("{:?}", patch);
+        }
         todo!()
     }
-    fn apply_patch(&mut self, patch: crate::bundler::diff::Patch) -> Result<(), ()> {
+    fn apply_patch(&mut self, patch: Patch) -> Result<(), ()> {
+        debug!("{:?}", patch);
         todo!()
     }
 }
@@ -267,7 +269,7 @@ impl Weapon {
         let mut dmg = input
             .get("dmg")
             .expect("Weapon DMG field not found")
-            .into_iter()
+            .iter()
             .map(|s| s.parse().expect("Weapon DMG field is not a number"));
         out.dmg = (
             dmg.next().expect("Weapon DMG field is empty"),
@@ -275,10 +277,12 @@ impl Weapon {
         );
         out.crit = parse_percent(&input.get("crit").expect("Weapon CRIT field not found")[0])
             .expect("Weapon CRIT field is not a number");
-        let spd = input.get("spd").expect("Weapon SPD field not found").get(0).expect("Weapon SPD field is empty");
-        out.spd = spd
-            .parse()
-            .expect(&format!("Weapon SPD field is not a number: {}", spd));
+        let spd = input
+            .get("spd")
+            .expect("Weapon SPD field not found")
+            .get(0)
+            .expect("Weapon SPD field is empty");
+        out.spd = spd.parse().expect("Weapon SPD field is not a number");
         out
     }
 }
@@ -439,7 +443,7 @@ impl MoveSkill {
         let mut dmg = input
             .get("move")
             .expect("Move skill MOVE field not found")
-            .into_iter()
+            .iter()
             .map(|s| s.parse().expect("Move skill MOVE field is not a number"));
         Self {
             backward: dmg.next().expect("Move skill MOVE field is empty"),
@@ -533,6 +537,8 @@ impl Incompatibilities {
         for mut entry in input {
             let id = entry.remove("id").unwrap().remove(0);
             let tag = entry.remove("hero_tag").unwrap().remove(0);
+            // False positive from clippy - https://github.com/rust-lang/rust-clippy/issues/5693
+            #[allow(clippy::or_fun_call)]
             map.entry(id).or_insert(vec![]).push(tag);
         }
         Self(map)

@@ -1,16 +1,8 @@
 use super::game_data::GameDataValue;
-use cursive::{
-    traits::Finder,
-    views::{Dialog, TextView},
-};
+
 use difference::{Changeset, Difference};
 use log::*;
-use std::{
-    cell::RefCell,
-    collections::{BTreeMap, HashMap, HashSet},
-    path::PathBuf,
-    rc::Rc,
-};
+use std::{collections::BTreeMap, path::PathBuf};
 
 pub type DataMap = BTreeMap<Vec<String>, GameDataValue>;
 
@@ -25,34 +17,27 @@ pub type Patch = BTreeMap<Vec<String>, ItemChange>;
 pub fn diff(original: DataMap, patched: DataMap) -> Patch {
     let mut out = Patch::new();
     let mut original = original.into_iter();
-    let mut patched = patched.into_iter();
-    
+
     let mut orig_item = original.next();
-    let mut patched_item = patched.next();
-    loop {
-        if let Some((path, entry)) = patched_item {
-            patched_item = patched.next();
-            loop {
-                if let Some((old_path, old_entry)) = &orig_item {
-                    if old_path > &path {
-                        out.insert(path, ItemChange::Removed);
-                        break;
-                    }
-                    if old_path == &path {
-                        if old_entry != &entry {
-                        out.insert(path, ItemChange::Set(entry));
-                        }
-                        break;
-                    }
-                    orig_item = original.next();
-                } else {
-                    // Original entries are finished, but not the patched ones
-                    out.insert(path, ItemChange::Set(entry));
+    for (path, entry) in patched {
+        loop {
+            if let Some((old_path, old_entry)) = &orig_item {
+                if old_path > &path {
+                    out.insert(path, ItemChange::Removed);
                     break;
                 }
-            };
-        } else {
-            break;
+                if old_path == &path {
+                    if old_entry != &entry {
+                        out.insert(path, ItemChange::Set(entry));
+                    }
+                    break;
+                }
+                orig_item = original.next();
+            } else {
+                // Original entries are finished, but not the patched ones
+                out.insert(path, ItemChange::Set(entry));
+                break;
+            }
         }
     }
     out
@@ -76,12 +61,12 @@ impl DataNode {
             content: content.into(),
         }
     }
-    pub fn into_parts(self) -> (PathBuf, DataNodeContent) {
-        (self.absolute, self.content)
-    }
-    pub fn into_content(self) -> DataNodeContent {
-        self.content
-    }
+    // pub fn into_parts(self) -> (PathBuf, DataNodeContent) {
+    //     (self.absolute, self.content)
+    // }
+    // pub fn into_content(self) -> DataNodeContent {
+    //     self.content
+    // }
 }
 
 #[derive(Debug)]
@@ -104,23 +89,23 @@ impl From<Option<String>> for DataNodeContent {
     }
 }
 
-pub struct LegacyModContent {
-    name: String,
-    diff: DiffTree,
-}
-impl LegacyModContent {
-    pub fn new(name: impl Into<String>, diff: DiffTree) -> Self {
-        Self {
-            name: name.into(),
-            diff,
-        }
-    }
-}
+// pub struct LegacyModContent {
+//     name: String,
+//     diff: DiffTree,
+// }
+// impl LegacyModContent {
+//     pub fn new(name: impl Into<String>, diff: DiffTree) -> Self {
+//         Self {
+//             name: name.into(),
+//             diff,
+//         }
+//     }
+// }
 
 pub type DiffTree = BTreeMap<PathBuf, DiffNode>;
 // FIXME: this makes it possible for multiple mods with the same name to collide!
-pub type Conflict = Vec<(String, DiffNode)>;
-pub type Conflicts = HashMap<PathBuf, Conflict>;
+// pub type Conflict = Vec<(String, DiffNode)>;
+// pub type Conflicts = HashMap<PathBuf, Conflict>;
 
 #[derive(Clone, Debug)]
 pub struct LinesChangeset(pub Vec<Option<LineChange>>);
@@ -264,21 +249,21 @@ pub enum DiffNode {
     AddedText(String),
     ModifiedText(LinesChangeset),
 }
-#[derive(Debug)]
-pub enum DiffNodeKind {
-    Binary,
-    AddedText,
-    ModifiedText,
-}
-impl DiffNode {
-    pub fn kind(&self) -> DiffNodeKind {
-        match self {
-            DiffNode::Binary(_) => DiffNodeKind::Binary,
-            DiffNode::AddedText(_) => DiffNodeKind::AddedText,
-            DiffNode::ModifiedText(_) => DiffNodeKind::ModifiedText,
-        }
-    }
-}
+// #[derive(Debug)]
+// pub enum DiffNodeKind {
+//     Binary,
+//     AddedText,
+//     ModifiedText,
+// }
+// impl DiffNode {
+//     pub fn kind(&self) -> DiffNodeKind {
+//         match self {
+//             DiffNode::Binary(_) => DiffNodeKind::Binary,
+//             DiffNode::AddedText(_) => DiffNodeKind::AddedText,
+//             DiffNode::ModifiedText(_) => DiffNodeKind::ModifiedText,
+//         }
+//     }
+// }
 
 pub trait DataTreeExt {
     fn diff(&self, other: DataTree) -> DiffTree;
@@ -322,244 +307,244 @@ impl DataTreeExt for DataTree {
     }
 }
 
-pub trait ResultDiffTressExt<E>: Iterator<Item = Result<LegacyModContent, E>> + Sized {
-    fn try_merge(
-        self,
-        on_progress: Option<&mut cursive::CbSink>,
-    ) -> Result<(DiffTree, Conflicts), E> {
-        Ok(merge(try_prepare_merge(self)?, on_progress))
-    }
-}
-impl<I, E> ResultDiffTressExt<E> for I where I: Iterator<Item = Result<LegacyModContent, E>> + Sized {}
-pub trait DiffTreesExt: Iterator<Item = LegacyModContent> + Sized {
-    fn merge(self, on_progress: Option<&mut cursive::CbSink>) -> (DiffTree, Conflicts) {
-        merge(prepare_merge(self), on_progress)
-    }
-}
-impl<I> DiffTreesExt for I where I: Iterator<Item = LegacyModContent> + Sized {}
+// pub trait ResultDiffTressExt<E>: Iterator<Item = Result<LegacyModContent, E>> + Sized {
+//     fn try_merge(
+//         self,
+//         on_progress: Option<&mut cursive::CbSink>,
+//     ) -> Result<(DiffTree, Conflicts), E> {
+//         Ok(merge(try_prepare_merge(self)?, on_progress))
+//     }
+// }
+// impl<I, E> ResultDiffTressExt<E> for I where I: Iterator<Item = Result<LegacyModContent, E>> + Sized {}
+// pub trait DiffTreesExt: Iterator<Item = LegacyModContent> + Sized {
+//     fn merge(self, on_progress: Option<&mut cursive::CbSink>) -> (DiffTree, Conflicts) {
+//         merge(prepare_merge(self), on_progress)
+//     }
+// }
+// impl<I> DiffTreesExt for I where I: Iterator<Item = LegacyModContent> + Sized {}
 
-type UsagesMap = HashMap<PathBuf, Vec<Rc<RefCell<LegacyModContent>>>>;
+// type UsagesMap = HashMap<PathBuf, Vec<Rc<RefCell<LegacyModContent>>>>;
 
-fn add_usage(usages: &mut UsagesMap, diff: LegacyModContent) {
-    info!("Filling the list of files touched by mod: {}", diff.name);
-    let diff = Rc::new(RefCell::new(diff));
-    let borrowed = diff.borrow();
-    for path in borrowed.diff.keys() {
-        debug!("Mod {}, file {:?}", borrowed.name, path);
-        // False positive from clippy - https://github.com/rust-lang/rust-clippy/issues/5693
-        #[allow(clippy::or_fun_call)]
-        usages
-            .entry(path.clone())
-            .or_insert(vec![])
-            .push(Rc::clone(&diff));
-    }
-}
+// fn add_usage(usages: &mut UsagesMap, diff: LegacyModContent) {
+//     info!("Filling the list of files touched by mod: {}", diff.name);
+//     let diff = Rc::new(RefCell::new(diff));
+//     let borrowed = diff.borrow();
+//     for path in borrowed.diff.keys() {
+//         debug!("Mod {}, file {:?}", borrowed.name, path);
+//         // False positive from clippy - https://github.com/rust-lang/rust-clippy/issues/5693
+//         #[allow(clippy::or_fun_call)]
+//         usages
+//             .entry(path.clone())
+//             .or_insert(vec![])
+//             .push(Rc::clone(&diff));
+//     }
+// }
 
-fn try_prepare_merge<E>(
-    mods: impl IntoIterator<Item = Result<LegacyModContent, E>>,
-) -> Result<UsagesMap, E> {
-    let mut usages = HashMap::new();
-    for diff in mods {
-        add_usage(&mut usages, diff?);
-    }
-    Ok(usages)
-}
+// fn try_prepare_merge<E>(
+//     mods: impl IntoIterator<Item = Result<LegacyModContent, E>>,
+// ) -> Result<UsagesMap, E> {
+//     let mut usages = HashMap::new();
+//     for diff in mods {
+//         add_usage(&mut usages, diff?);
+//     }
+//     Ok(usages)
+// }
 
-fn prepare_merge(mods: impl IntoIterator<Item = LegacyModContent>) -> UsagesMap {
-    let mut usages = HashMap::new();
-    for diff in mods {
-        add_usage(&mut usages, diff);
-    }
-    usages
-}
+// fn prepare_merge(mods: impl IntoIterator<Item = LegacyModContent>) -> UsagesMap {
+//     let mut usages = HashMap::new();
+//     for diff in mods {
+//         add_usage(&mut usages, diff);
+//     }
+//     usages
+// }
 
-fn merge(
-    usages: UsagesMap,
-    mut on_progress: Option<&mut cursive::CbSink>,
-) -> (DiffTree, Conflicts) {
-    let mut conflicts = Conflicts::new();
-    let mut merged = DiffTree::new();
+// fn merge(
+//     usages: UsagesMap,
+//     mut on_progress: Option<&mut cursive::CbSink>,
+// ) -> (DiffTree, Conflicts) {
+//     let mut conflicts = Conflicts::new();
+//     let mut merged = DiffTree::new();
 
-    if let Some(sink) = on_progress.as_mut() {
-        crate::run_update(sink, |cursive| {
-            cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
-                dialog.set_title("Merging fetched mods...");
-                dialog.call_on_name("Loading part", |text: &mut TextView| {
-                    text.set_content(" ");
-                });
-                dialog.call_on_name("Loading file", |text: &mut TextView| {
-                    text.set_content(" ");
-                });
-            });
-        })
-    }
+//     if let Some(sink) = on_progress.as_mut() {
+//         crate::run_update(sink, |cursive| {
+//             cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
+//                 dialog.set_title("Merging fetched mods...");
+//                 dialog.call_on_name("Loading part", |text: &mut TextView| {
+//                     text.set_content(" ");
+//                 });
+//                 dialog.call_on_name("Loading file", |text: &mut TextView| {
+//                     text.set_content(" ");
+//                 });
+//             });
+//         })
+//     }
 
-    // Now, we'll iterate over files.
-    for (path, mut mods) in usages {
-        let string_path = path.to_string_lossy();
-        info!("[merge] {:?}: merging changes", path);
-        if let Some(sink) = on_progress.as_mut() {
-            super::set_file_updated(sink, "Merging", string_path)
-        }
+//     // Now, we'll iterate over files.
+//     for (path, mut mods) in usages {
+//         let string_path = path.to_string_lossy();
+//         info!("[merge] {:?}: merging changes", path);
+//         if let Some(sink) = on_progress.as_mut() {
+//             super::set_file_updated(sink, "Merging", string_path)
+//         }
 
-        // Sanity check: mods vec shouldn't be empty.
-        if mods.is_empty() {
-            warn!(
-                "[merge] {:?}: unexpected empty list of modifying mods",
-                path
-            );
-            continue;
-        }
-        // The simplest case: file is modified by exactly one mod.
-        else if mods.len() == 1 {
-            // We can remove entry from DiffTree, since it won't be ever touched later.
-            let the_mod = mods.remove(0);
-            info!(
-                "[merge] {:?}: no conflicts - file is changed only by mod {}",
-                path,
-                the_mod.borrow().name
-            );
-            let item = the_mod.borrow_mut().diff.remove(&path).unwrap();
-            merged.insert(path, item);
-        }
-        // Now, we should check what kind of changes are there.
-        else {
-            let kind = mods[0].borrow().diff.get(&path).unwrap().kind();
-            let list = mods
-                .into_iter()
-                .map(|item| {
-                    let mut item = item.borrow_mut();
-                    (item.name.clone(), item.diff.remove(&path).unwrap())
-                })
-                .collect::<Vec<_>>();
-            info!(
-                "[merge] {:?}: multiple mods are changing file: {:?}",
-                path,
-                list.iter().map(|(name, _)| name).collect::<Vec<_>>()
-            );
-            match kind {
-                // Another simple case is when multiple mods modify (or create) one binary file.
-                // For multiple mods adding the same text file, we want to ask user to choose one of them as "base",
-                // and then we'll run the diffing again, with "base" being the "vanilla" and all others being "mods".
-                // So, they are directly put into "conflicts", like the binaries.
-                kind @ DiffNodeKind::Binary | kind @ DiffNodeKind::AddedText => {
-                    debug!(
-                        "[merge] {:?}: Diff is of kind {:?} - putting it to conflicts directly",
-                        path, kind
-                    );
-                    conflicts.insert(path, list);
-                }
-                // Now that's getting tricky.
-                DiffNodeKind::ModifiedText => {
-                    debug!("[merge] {:?}: Diff is modifying existing text - trying to merge line-by-line", path);
-                    // We will treat as conflict any case when two mods modify the same line.
-                    // And we want to merge all non-conflicting cases.
-                    // So, we iterate over every changeset, to check which lines are
-                    // changed by it.
-                    let mut line_changes: Vec<HashMap<String, LineChange>> = vec![];
-                    let mut conflict_changes = HashMap::new();
-                    for changes in &list {
-                        if let (name, DiffNode::ModifiedText(changelist)) = changes {
-                            conflict_changes.insert(name.to_string(), vec![]);
-                            if line_changes.is_empty() {
-                                line_changes.resize_with(changelist.0.len(), Default::default);
-                            }
-                            for (index, change) in changelist.0.iter().enumerate() {
-                                change.as_ref().map(|change| {
-                                    debug!(
-                                        "[merge] {:?}: Mod {} changes line {}",
-                                        path, name, index
-                                    );
-                                    line_changes[index].insert(name.into(), change.clone())
-                                });
-                            }
-                        } else {
-                            unreachable!();
-                        }
-                    }
-                    // OK, now we get the list of every change grouped by source line.
-                    let mut merged_changes = vec![];
-                    for (index, line_change) in line_changes.into_iter().enumerate() {
-                        // Trivial case - no changes
-                        if line_change.is_empty() {
-                            merged_changes.push(None);
-                            for change in conflict_changes.values_mut() {
-                                change.push(None);
-                            }
-                        }
-                        // Good case - change from exactly one mod.
-                        else if line_change.len() == 1 {
-                            let (name, change) = line_change.into_iter().next().unwrap();
-                            debug!(
-                                "[merge] {:?}: Exactly one change for line {}, mod = {}",
-                                path, index, name
-                            );
-                            merged_changes.push(Some(change));
-                            for change in conflict_changes.values_mut() {
-                                change.push(None);
-                            }
-                        }
-                        // Bad case - there's a conflict!
-                        else {
-                            // Don't panic yet! Let's check if all the changes are indeed the same.
-                            let set: HashSet<_> = line_change.values().collect();
-                            if set.len() == 1 {
-                                // All changes are equal - no problem!
-                                let (_, change) = line_change.into_iter().next().unwrap();
-                                debug!(
-                                    "[merge] {:?}: Multiple equal changes for line {}",
-                                    path, index
-                                );
-                                merged_changes.push(Some(change));
-                                for change in conflict_changes.values_mut() {
-                                    change.push(None);
-                                }
-                                continue;
-                            }
-                            // OK, that's really a conflict.
-                            // First of all, push "unchanged" marker to the merges list.
-                            merged_changes.push(None);
-                            // Now, let's operate on "conflicts".
-                            debug!(
-                                "[merge] {:?}: Conflicting changes for line {}, mods: {:?}",
-                                path,
-                                index,
-                                line_change.keys().collect::<Vec<_>>()
-                            );
-                            let mut line_change = line_change;
-                            for (name, conflict) in conflict_changes.iter_mut() {
-                                let change = line_change.remove(name);
-                                conflict.push(change);
-                            }
-                        }
-                    }
-                    // Woof! Finally, we can put the results into the output maps.
-                    if !merged_changes.iter().all(Option::is_none) {
-                        info!("[merge] {:?}: outputting merged changes", path);
-                        merged.insert(
-                            path.clone(),
-                            DiffNode::ModifiedText(LinesChangeset(merged_changes)),
-                        );
-                    }
-                    conflict_changes.retain(|_, list| !list.iter().all(Option::is_none));
-                    if !conflict_changes.is_empty() {
-                        info!("[merge] {:?}: outputting conflicts", path);
-                        let conflict_changes = conflict_changes
-                            .into_iter()
-                            .map(|(key, list)| {
-                                debug!("[merge] {:?}: conflicting changes from mod {}", path, key);
-                                (key, DiffNode::ModifiedText(LinesChangeset(list)))
-                            })
-                            .collect();
-                        conflicts.insert(path, conflict_changes);
-                    }
-                }
-            }
-        }
-    }
+//         // Sanity check: mods vec shouldn't be empty.
+//         if mods.is_empty() {
+//             warn!(
+//                 "[merge] {:?}: unexpected empty list of modifying mods",
+//                 path
+//             );
+//             continue;
+//         }
+//         // The simplest case: file is modified by exactly one mod.
+//         else if mods.len() == 1 {
+//             // We can remove entry from DiffTree, since it won't be ever touched later.
+//             let the_mod = mods.remove(0);
+//             info!(
+//                 "[merge] {:?}: no conflicts - file is changed only by mod {}",
+//                 path,
+//                 the_mod.borrow().name
+//             );
+//             let item = the_mod.borrow_mut().diff.remove(&path).unwrap();
+//             merged.insert(path, item);
+//         }
+//         // Now, we should check what kind of changes are there.
+//         else {
+//             let kind = mods[0].borrow().diff.get(&path).unwrap().kind();
+//             let list = mods
+//                 .into_iter()
+//                 .map(|item| {
+//                     let mut item = item.borrow_mut();
+//                     (item.name.clone(), item.diff.remove(&path).unwrap())
+//                 })
+//                 .collect::<Vec<_>>();
+//             info!(
+//                 "[merge] {:?}: multiple mods are changing file: {:?}",
+//                 path,
+//                 list.iter().map(|(name, _)| name).collect::<Vec<_>>()
+//             );
+//             match kind {
+//                 // Another simple case is when multiple mods modify (or create) one binary file.
+//                 // For multiple mods adding the same text file, we want to ask user to choose one of them as "base",
+//                 // and then we'll run the diffing again, with "base" being the "vanilla" and all others being "mods".
+//                 // So, they are directly put into "conflicts", like the binaries.
+//                 kind @ DiffNodeKind::Binary | kind @ DiffNodeKind::AddedText => {
+//                     debug!(
+//                         "[merge] {:?}: Diff is of kind {:?} - putting it to conflicts directly",
+//                         path, kind
+//                     );
+//                     conflicts.insert(path, list);
+//                 }
+//                 // Now that's getting tricky.
+//                 DiffNodeKind::ModifiedText => {
+//                     debug!("[merge] {:?}: Diff is modifying existing text - trying to merge line-by-line", path);
+//                     // We will treat as conflict any case when two mods modify the same line.
+//                     // And we want to merge all non-conflicting cases.
+//                     // So, we iterate over every changeset, to check which lines are
+//                     // changed by it.
+//                     let mut line_changes: Vec<HashMap<String, LineChange>> = vec![];
+//                     let mut conflict_changes = HashMap::new();
+//                     for changes in &list {
+//                         if let (name, DiffNode::ModifiedText(changelist)) = changes {
+//                             conflict_changes.insert(name.to_string(), vec![]);
+//                             if line_changes.is_empty() {
+//                                 line_changes.resize_with(changelist.0.len(), Default::default);
+//                             }
+//                             for (index, change) in changelist.0.iter().enumerate() {
+//                                 change.as_ref().map(|change| {
+//                                     debug!(
+//                                         "[merge] {:?}: Mod {} changes line {}",
+//                                         path, name, index
+//                                     );
+//                                     line_changes[index].insert(name.into(), change.clone())
+//                                 });
+//                             }
+//                         } else {
+//                             unreachable!();
+//                         }
+//                     }
+//                     // OK, now we get the list of every change grouped by source line.
+//                     let mut merged_changes = vec![];
+//                     for (index, line_change) in line_changes.into_iter().enumerate() {
+//                         // Trivial case - no changes
+//                         if line_change.is_empty() {
+//                             merged_changes.push(None);
+//                             for change in conflict_changes.values_mut() {
+//                                 change.push(None);
+//                             }
+//                         }
+//                         // Good case - change from exactly one mod.
+//                         else if line_change.len() == 1 {
+//                             let (name, change) = line_change.into_iter().next().unwrap();
+//                             debug!(
+//                                 "[merge] {:?}: Exactly one change for line {}, mod = {}",
+//                                 path, index, name
+//                             );
+//                             merged_changes.push(Some(change));
+//                             for change in conflict_changes.values_mut() {
+//                                 change.push(None);
+//                             }
+//                         }
+//                         // Bad case - there's a conflict!
+//                         else {
+//                             // Don't panic yet! Let's check if all the changes are indeed the same.
+//                             let set: HashSet<_> = line_change.values().collect();
+//                             if set.len() == 1 {
+//                                 // All changes are equal - no problem!
+//                                 let (_, change) = line_change.into_iter().next().unwrap();
+//                                 debug!(
+//                                     "[merge] {:?}: Multiple equal changes for line {}",
+//                                     path, index
+//                                 );
+//                                 merged_changes.push(Some(change));
+//                                 for change in conflict_changes.values_mut() {
+//                                     change.push(None);
+//                                 }
+//                                 continue;
+//                             }
+//                             // OK, that's really a conflict.
+//                             // First of all, push "unchanged" marker to the merges list.
+//                             merged_changes.push(None);
+//                             // Now, let's operate on "conflicts".
+//                             debug!(
+//                                 "[merge] {:?}: Conflicting changes for line {}, mods: {:?}",
+//                                 path,
+//                                 index,
+//                                 line_change.keys().collect::<Vec<_>>()
+//                             );
+//                             let mut line_change = line_change;
+//                             for (name, conflict) in conflict_changes.iter_mut() {
+//                                 let change = line_change.remove(name);
+//                                 conflict.push(change);
+//                             }
+//                         }
+//                     }
+//                     // Woof! Finally, we can put the results into the output maps.
+//                     if !merged_changes.iter().all(Option::is_none) {
+//                         info!("[merge] {:?}: outputting merged changes", path);
+//                         merged.insert(
+//                             path.clone(),
+//                             DiffNode::ModifiedText(LinesChangeset(merged_changes)),
+//                         );
+//                     }
+//                     conflict_changes.retain(|_, list| !list.iter().all(Option::is_none));
+//                     if !conflict_changes.is_empty() {
+//                         info!("[merge] {:?}: outputting conflicts", path);
+//                         let conflict_changes = conflict_changes
+//                             .into_iter()
+//                             .map(|(key, list)| {
+//                                 debug!("[merge] {:?}: conflicting changes from mod {}", path, key);
+//                                 (key, DiffNode::ModifiedText(LinesChangeset(list)))
+//                             })
+//                             .collect();
+//                         conflicts.insert(path, conflict_changes);
+//                     }
+//                 }
+//             }
+//         }
+//     }
 
-    (merged, conflicts)
-}
+//     (merged, conflicts)
+// }
 
 pub trait DiffTreeExt: Sized {
     fn apply_to(self, _: DataTree) -> DataTree;

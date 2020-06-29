@@ -17,15 +17,15 @@ impl ModContent {
     pub fn build(binary: ModBinaries, text_added: ModAddedTexts, text_modified: ModModifiedTexts) -> Self {
         Self { binary, text_added, text_modified }
     }
-    pub fn binary_ref(&self) -> &ModBinaries {
-        &self.binary
-    }
-    pub fn text_added_ref(&self) -> &ModAddedTexts {
-        &self.text_added
-    }
-    pub fn text_modified_ref(&self) -> &ModModifiedTexts {
-        &self.text_modified
-    }
+    // pub fn binary_ref(&self) -> &ModBinaries {
+    //     &self.binary
+    // }
+    // pub fn text_added_ref(&self) -> &ModAddedTexts {
+    //     &self.text_added
+    // }
+    // pub fn text_modified_ref(&self) -> &ModModifiedTexts {
+    //     &self.text_modified
+    // }
     pub fn binary_mut(&mut self) -> &mut ModBinaries {
         &mut self.binary
     }

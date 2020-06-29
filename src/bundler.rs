@@ -14,17 +14,14 @@ use cursive::{
     views::{Dialog, LinearLayout, TextView},
     Cursive,
 };
-use diff::{DataNode, DataTree, Patch};
+use diff::Patch;
 use error::ExtractionError;
-use game_data::{BTreeMappable, GameDataItem, StructuredItem, BTreePatchable};
+use game_data::{BTreeMappable, BTreePatchable, GameDataItem};
 use log::*;
-use std::{
-    collections::{BTreeMap, HashMap},
-    fs::read_dir,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, fs::read_dir};
 use thiserror::Error;
 
+#[derive(Clone, Debug)]
 pub struct ModFileChange {
     mod_name: String,
     change: Patch,
@@ -181,7 +178,8 @@ fn do_bundle(
     data.extend(
         text_added
             .iter()
-            .map(|(key, value)| (key.clone(), GameDataItem::Structured(value.clone()))));
+            .map(|(key, value)| (key.clone(), GameDataItem::Structured(value.clone()))),
+    );
     // ...and everything that remains in mods should be diffed against it
     for content in mods.values_mut() {
         content.added_to_modified(&data);
@@ -209,12 +207,14 @@ fn do_bundle(
     for (path, patch) in text_modified {
         mods_data
             .get_mut(&path)
-            .expect(&format!(
-                "Attempt to modify non-existing file {:?} - possibly a bug",
-                path
-            ))
+            .unwrap_or_else(|| {
+                panic!(
+                    "Attempt to modify non-existing file {:?} - possibly a bug",
+                    path
+                )
+            })
             .apply_patch(patch)
-            .expect(&format!("Error applying patch to {:?}", path));
+            .unwrap_or_else(|_| panic!("Error applying patch to {:?}", path));
     }
 
     // That's it. Mod data is ready.
@@ -259,106 +259,99 @@ fn load_mod(
     );
 
     let mut orig_entries = game_data.iter();
-    let mut mod_entries = content.into_iter();
 
     let mut binary = HashMap::new();
     let mut text_added = HashMap::new();
     let mut text_modified = HashMap::new();
 
     let mut orig_entry = orig_entries.next();
-    let mut mod_entry = mod_entries.next();
-    loop {
-        if let Some((path, entry)) = mod_entry {
-            mod_entry = mod_entries.next();
-            let orig = loop {
-                if let Some((old_path, old_entry)) = &orig_entry {
-                    if old_path > &&path {
-                        break None;
-                    }
-                    if old_path == &&path {
-                        break Some(old_entry);
-                    }
-                    orig_entry = orig_entries.next();
-                } else {
+    for (path, entry) in content {
+        let orig = loop {
+            if let Some((old_path, old_entry)) = &orig_entry {
+                if old_path > &&path {
                     break None;
                 }
-            };
-            match orig {
-                Some(old_entry) => match (old_entry, entry) {
-                    (GameDataItem::Binary(_), GameDataItem::Binary(source)) => {
-                        let existing = binary.insert(path, source);
-                        debug_assert!(existing.is_none());
-                    }
-                    (GameDataItem::Structured(orig), GameDataItem::Structured(ref modded)) => {
-                        let existing =
-                            text_modified.insert(path, diff::diff(orig.to_map(), modded.to_map()));
-                        debug_assert!(existing.is_none());
-                    }
-                    _ => unreachable!(),
-                },
-                None => match entry {
-                    GameDataItem::Binary(source) => {
-                        let existing = binary.insert(path, source);
-                        debug_assert!(existing.is_none());
-                    }
-                    GameDataItem::Structured(item) => {
-                        let existing = text_added.insert(path, item);
-                        debug_assert!(existing.is_none());
-                    }
-                },
+                if old_path == &&path {
+                    break Some(old_entry);
+                }
+                orig_entry = orig_entries.next();
+            } else {
+                break None;
             }
-        } else {
-            break;
+        };
+        match orig {
+            Some(old_entry) => match (old_entry, entry) {
+                (GameDataItem::Binary(_), GameDataItem::Binary(source)) => {
+                    let existing = binary.insert(path, source);
+                    debug_assert!(existing.is_none());
+                }
+                (GameDataItem::Structured(orig), GameDataItem::Structured(ref modded)) => {
+                    let existing =
+                        text_modified.insert(path, diff::diff(orig.to_map(), modded.to_map()));
+                    debug_assert!(existing.is_none());
+                }
+                _ => unreachable!(),
+            },
+            None => match entry {
+                GameDataItem::Binary(source) => {
+                    let existing = binary.insert(path, source);
+                    debug_assert!(existing.is_none());
+                }
+                GameDataItem::Structured(item) => {
+                    let existing = text_added.insert(path, item);
+                    debug_assert!(existing.is_none());
+                }
+            },
         }
     }
 
     Ok(ModContent::build(binary, text_added, text_modified))
 }
 
-fn extract_data(
-    on_file_read: &mut cursive::CbSink,
-    base_path: &Path,
-    cur_path: &Path,
-    root: bool,
-) -> Result<DataTree, ExtractionError> {
-    info!("Extracting data from: {:?}", cur_path);
-    let items = read_dir(cur_path)
-        .map_err(ExtractionError::from_io(cur_path))?
-        .map(|entry| {
-            entry.and_then(|entry| {
-                entry.metadata().map(|meta| {
-                    let path = entry.path();
-                    (path, meta)
-                })
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(ExtractionError::from_io(cur_path))?;
-    let items = items
-        .into_iter()
-        .map(|(item_path, meta)| {
-            if meta.is_dir() {
-                if item_path.file_name().and_then(std::ffi::OsStr::to_str) == Some("dlc") {
-                    debug!("Skipping DLC directory");
-                    Ok(vec![])
-                } else {
-                    debug!("Descending into child directory {:?}", item_path);
-                    extract_data(on_file_read, base_path, &item_path, false)
-                        .map(|data| data.into_iter().collect())
-                }
-            } else if root {
-                debug!("Skipping file in root: {:?}", item_path);
-                // Special case - don't extract anything from root folder (there is no data there)
-                Ok(vec![])
-            } else {
-                extract_from_file(on_file_read, base_path, &item_path)
-                    .map(|(path, data)| vec![(path, data)])
-                    .map_err(ExtractionError::from_io(&item_path))
-            }
-        })
-        .collect::<Result<Vec<Vec<_>>, _>>()?;
-    Ok(items.into_iter().flatten().collect())
-}
+// fn extract_data(
+//     on_file_read: &mut cursive::CbSink,
+//     base_path: &Path,
+//     cur_path: &Path,
+//     root: bool,
+// ) -> Result<DataTree, ExtractionError> {
+//     info!("Extracting data from: {:?}", cur_path);
+//     let items = read_dir(cur_path)
+//         .map_err(ExtractionError::from_io(cur_path))?
+//         .map(|entry| {
+//             entry.and_then(|entry| {
+//                 entry.metadata().map(|meta| {
+//                     let path = entry.path();
+//                     (path, meta)
+//                 })
+//             })
+//         })
+//         .collect::<Result<Vec<_>, _>>()
+//         .map_err(ExtractionError::from_io(cur_path))?;
+//     let items = items
+//         .into_iter()
+//         .map(|(item_path, meta)| {
+//             if meta.is_dir() {
+//                 if item_path.file_name().and_then(std::ffi::OsStr::to_str) == Some("dlc") {
+//                     debug!("Skipping DLC directory");
+//                     Ok(vec![])
+//                 } else {
+//                     debug!("Descending into child directory {:?}", item_path);
+//                     extract_data(on_file_read, base_path, &item_path, false)
+//                         .map(|data| data.into_iter().collect())
+//                 }
+//             } else if root {
+//                 debug!("Skipping file in root: {:?}", item_path);
+//                 // Special case - don't extract anything from root folder (there is no data there)
+//                 Ok(vec![])
+//             } else {
+//                 extract_from_file(on_file_read, base_path, &item_path)
+//                     .map(|(path, data)| vec![(path, data)])
+//                     .map_err(ExtractionError::from_io(&item_path))
+//             }
+//         })
+//         .collect::<Result<Vec<Vec<_>>, _>>()?;
+//     Ok(items.into_iter().flatten().collect())
+// }
 
 fn set_file_updated(
     on_file_read: &mut cursive::CbSink,
@@ -393,54 +386,54 @@ fn set_file_updated(
     });
 }
 
-fn extract_from_file(
-    on_file_read: &mut cursive::CbSink,
-    base_path: &Path,
-    path: &Path,
-) -> std::io::Result<(PathBuf, DataNode)> {
-    info!("Reading file: {:?}", path);
-    let rel_path = path.strip_prefix(base_path).map_err(|_| {
-        std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            format!(
-                "Bundler reached the path outside of the working directory: {}",
-                path.to_string_lossy()
-            ),
-        )
-    })?;
-    let log_path = rel_path.to_string_lossy();
-    set_file_updated(on_file_read, "Reading", log_path);
+// fn extract_from_file(
+//     on_file_read: &mut cursive::CbSink,
+//     base_path: &Path,
+//     path: &Path,
+// ) -> std::io::Result<(PathBuf, DataNode)> {
+//     info!("Reading file: {:?}", path);
+//     let rel_path = path.strip_prefix(base_path).map_err(|_| {
+//         std::io::Error::new(
+//             std::io::ErrorKind::InvalidInput,
+//             format!(
+//                 "Bundler reached the path outside of the working directory: {}",
+//                 path.to_string_lossy()
+//             ),
+//         )
+//     })?;
+//     let log_path = rel_path.to_string_lossy();
+//     set_file_updated(on_file_read, "Reading", log_path);
 
-    let content = match path.extension().and_then(std::ffi::OsStr::to_str) {
-        Some("js") | Some("darkest") | Some("xml") | Some("json") | Some("txt") => {
-            match std::fs::read_to_string(path).map(Some) {
-                Ok(s) => {
-                    debug!("Read successful: {:?}", path);
-                    s.as_ref().map(|s| {
-                        debug!(
-                            "Total {} lines, {} characters",
-                            s.lines().count(),
-                            s.chars().count()
-                        )
-                    });
-                    Ok(s)
-                }
-                Err(err) if err.kind() == std::io::ErrorKind::InvalidData => {
-                    debug!(
-                        "Read unsuccessful, non-UTF8 data; asserting that {:?} is a binary file",
-                        path
-                    );
-                    Ok(None)
-                }
-                err => err,
-            }?
-        }
-        _ => {
-            debug!(
-                "File extension is not in white-list (js,json,xml,txt,darkest), loading as binary"
-            );
-            None
-        }
-    };
-    Ok((rel_path.into(), DataNode::new(path, content)))
-}
+//     let content = match path.extension().and_then(std::ffi::OsStr::to_str) {
+//         Some("js") | Some("darkest") | Some("xml") | Some("json") | Some("txt") => {
+//             match std::fs::read_to_string(path).map(Some) {
+//                 Ok(s) => {
+//                     debug!("Read successful: {:?}", path);
+//                     s.as_ref().map(|s| {
+//                         debug!(
+//                             "Total {} lines, {} characters",
+//                             s.lines().count(),
+//                             s.chars().count()
+//                         )
+//                     });
+//                     Ok(s)
+//                 }
+//                 Err(err) if err.kind() == std::io::ErrorKind::InvalidData => {
+//                     debug!(
+//                         "Read unsuccessful, non-UTF8 data; asserting that {:?} is a binary file",
+//                         path
+//                     );
+//                     Ok(None)
+//                 }
+//                 err => err,
+//             }?
+//         }
+//         _ => {
+//             debug!(
+//                 "File extension is not in white-list (js,json,xml,txt,darkest), loading as binary"
+//             );
+//             None
+//         }
+//     };
+//     Ok((rel_path.into(), DataNode::new(path, content)))
+// }

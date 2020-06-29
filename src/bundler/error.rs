@@ -11,7 +11,7 @@ pub enum BundlerError {
 
 #[derive(Debug, Error)]
 pub enum ExtractionError {
-    #[error("IO error encountered on path {1} {}", .2.as_ref().map(|s| format!("({})", s)).unwrap_or("".into()))]
+    #[error("IO error encountered on path {1} {}", .2.as_ref().map(|s| format!("({})", s)).unwrap_or_else(|| "".into()))]
     Io(#[source] std::io::Error, PathBuf, Option<String>),
 }
 
