@@ -1,6 +1,6 @@
 use super::{
     diff::{DataNodeContent, DataTree},
-    error::DeploymentError,
+    error::DeploymentError, game_data::GameData,
 };
 use crossbeam_channel::{bounded, Sender};
 use cursive::{
@@ -21,7 +21,7 @@ enum OverwriteChoice {
 pub fn deploy(
     sink: &mut cursive::CbSink,
     mod_path: &Path,
-    bundle: DataTree,
+    bundle: GameData,
 ) -> Result<(), DeploymentError> {
     let (name, dir) = ask_for_props(sink);
     let mod_path = mod_path.join(dir);
@@ -50,8 +50,11 @@ pub fn deploy(
         r#"<?xml version="1.0" encoding="utf-8"?>
 <project>
     <Title>{}</Title>
+    <ModDataPath>{}</ModDataPath>
+	<UploadMode>dont_submit</UploadMode>
 </project>"#,
-        name
+        name,
+        mod_path.to_str().expect("Path to the mods directory is not valid UTF-8 - this won't work"),
     );
     std::fs::write(&project_xml_path, project_xml)
         .map_err(DeploymentError::from_io(&project_xml_path))?;
@@ -60,28 +63,29 @@ pub fn deploy(
     for (path, item) in bundle {
         info!("Writing mod file to relative path {:?}", path);
         super::set_file_updated(sink, "Deploying", path.to_string_lossy());
-        let (source, content) = item.into_parts();
-        let target = mod_path.join(path);
-        let dir = target.parent().unwrap();
-        std::fs::create_dir_all(dir).map_err(DeploymentError::from_io(&dir))?;
-        match content {
-            DataNodeContent::Binary => {
-                info!("Copying binary file from {:?}", source);
-                let mut source =
-                    std::fs::File::open(&source).map_err(DeploymentError::from_io(&source))?;
-                let mut target =
-                    std::fs::File::create(&target).map_err(DeploymentError::from_io(&target))?;
-                std::io::copy(&mut source, &mut target).map(|_| {})
-            }
-            DataNodeContent::Text(text) => {
-                info!(
-                    "Writing text file, first 100 chars = \"{}\"",
-                    text.chars().take(100).collect::<String>()
-                );
-                std::fs::write(&target, text)
-            }
-        }
-        .map_err(DeploymentError::from_io(&target))?;
+        todo!();
+        // let (source, content) = item.into_parts();
+        // let target = mod_path.join(path);
+        // let dir = target.parent().unwrap();
+        // std::fs::create_dir_all(dir).map_err(DeploymentError::from_io(&dir))?;
+        // match content {
+        //     DataNodeContent::Binary => {
+        //         info!("Copying binary file from {:?}", source);
+        //         let mut source =
+        //             std::fs::File::open(&source).map_err(DeploymentError::from_io(&source))?;
+        //         let mut target =
+        //             std::fs::File::create(&target).map_err(DeploymentError::from_io(&target))?;
+        //         std::io::copy(&mut source, &mut target).map(|_| {})
+        //     }
+        //     DataNodeContent::Text(text) => {
+        //         info!(
+        //             "Writing text file, first 100 chars = \"{}\"",
+        //             text.chars().take(100).collect::<String>()
+        //         );
+        //         std::fs::write(&target, text)
+        //     }
+        // }
+        // .map_err(DeploymentError::from_io(&target))?;
     }
     Ok(())
 }

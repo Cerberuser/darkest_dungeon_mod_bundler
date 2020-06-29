@@ -3,7 +3,10 @@ mod diff;
 mod error;
 mod game_data;
 mod loader;
+mod mod_content;
 mod resolve;
+
+use mod_content::*;
 
 use crate::loader::GlobalData;
 use cursive::{
@@ -11,12 +14,9 @@ use cursive::{
     views::{Dialog, LinearLayout, TextView},
     Cursive,
 };
-use diff::{
-    DataMap, DataNode, DataTree, DataTreeExt, DiffTreeExt, LegacyModContent, Patch,
-    ResultDiffTressExt,
-};
+use diff::{DataNode, DataTree, Patch};
 use error::ExtractionError;
-use game_data::{BTreeMappable, GameDataItem, StructuredItem};
+use game_data::{BTreeMappable, GameDataItem, StructuredItem, BTreePatchable};
 use log::*;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -24,13 +24,6 @@ use std::{
     path::{Path, PathBuf},
 };
 use thiserror::Error;
-
-#[derive(Clone, Debug)]
-struct ModContent {
-    binary: HashMap<PathBuf, PathBuf>,
-    text_added: HashMap<PathBuf, StructuredItem>,
-    text_modified: HashMap<PathBuf, Patch>,
-}
 
 pub struct ModFileChange {
     mod_name: String,
@@ -42,7 +35,10 @@ pub struct ModFileChange {
 struct PanicError(String);
 
 pub fn bundle(cursive: &mut Cursive) {
-    let global_data: GlobalData = cursive.take_user_data().expect("No data was set");
+    let mut global_data: GlobalData = cursive.take_user_data().expect("No data was set");
+    global_data
+        .mods
+        .sort_by_key(|the_mod| the_mod.name().to_owned());
 
     crate::screen(
         cursive,
@@ -155,39 +151,83 @@ fn do_bundle(
 
     info!("Reading selected mods");
     let mut for_mods_extract = on_file_read.clone();
-    let mods = global_data
+    let mut mods: HashMap<_, _> = global_data
         .mods
         .into_iter()
         .inspect(|the_mod| info!("Reading mod: {:?}", the_mod))
         .filter(|the_mod| the_mod.selected)
         .map(|the_mod| {
-            info!("Extracting data from selected mod: {}", the_mod.name());
-            load_mod(&mut for_mods_extract, the_mod, &data)
-        });
+            let name = the_mod.name().to_string();
+            info!("Extracting data from selected mod: {}", name);
+            let loaded = load_mod(&mut for_mods_extract, the_mod, &data)?;
+            Ok((name, loaded))
+        })
+        .collect::<Result<_, ExtractionError>>()?;
 
-    // Debugging
-    for the_mod in mods {
-        debug!("{:?}", the_mod?);
+    // First, ask user to choose binary files.
+    let binaries = mods
+        .iter_mut()
+        .map(|(name, content)| (name.clone(), content.binary_mut()))
+        .collect();
+    let binaries = resolve::resolve_binaries(on_file_read, binaries);
+
+    // Next, ask to choose the basic file from a list of added ones
+    let text_added = mods
+        .iter_mut()
+        .map(|(name, content)| (name.clone(), content.text_added_mut()))
+        .collect();
+    let text_added = resolve::resolve_added_text(on_file_read, text_added);
+    // This added files are treated "as if" they were in the unmodded game
+    data.extend(
+        text_added
+            .iter()
+            .map(|(key, value)| (key.clone(), GameDataItem::Structured(value.clone()))));
+    // ...and everything that remains in mods should be diffed against it
+    for content in mods.values_mut() {
+        content.added_to_modified(&data);
     }
 
-    // let (merged, conflicts) = mods.try_merge(Some(on_file_read))?;
-    // info!("Merged mods data, got {} conflicts", conflicts.len());
+    // Last, we merge the changes (both original and introduced at the previous step)
+    let text_modified = mods
+        .iter_mut()
+        .map(|(name, content)| (name.clone(), content.text_modified_mut()))
+        .collect();
+    let text_modified = resolve::resolve_modified_text(on_file_read, text_modified);
 
-    // let resolved = resolve::resolve(on_file_read, conflicts);
-    // let merged = resolve::merge_resolved(merged, resolved);
+    // Merge every changes into the single tree
+    let mut mods_data: game_data::GameData = binaries
+        .into_iter()
+        .map(|(key, value)| (key, GameDataItem::Binary(value)))
+        .collect();
+    // Merge first the added files - they might not be changed later
+    mods_data.extend(
+        text_added
+            .into_iter()
+            .map(|(key, value)| (key, GameDataItem::Structured(value))),
+    );
+    // Then, apply the patches.
+    for (path, patch) in text_modified {
+        mods_data
+            .get_mut(&path)
+            .expect(&format!(
+                "Attempt to modify non-existing file {:?} - possibly a bug",
+                path
+            ))
+            .apply_patch(patch)
+            .expect(&format!("Error applying patch to {:?}", path));
+    }
 
-    // info!("Applying patches");
-    // let modded = merged.apply_to(original_data);
+    // That's it. Mod data is ready.
 
-    // crate::run_update(on_file_read, |cursive| {
-    //     cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
-    //         dialog.set_title("Deploying...");
-    //     });
-    // });
+    crate::run_update(on_file_read, |cursive| {
+        cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
+            dialog.set_title("Deploying...");
+        });
+    });
 
-    // info!("Deploying generated mod to the \"mods\" directory");
-    // let mods_path = path.join("mods");
-    // deploy::deploy(on_file_read, &mods_path, modded)?;
+    info!("Deploying generated mod to the \"mods\" directory");
+    let mods_path = path.join("mods");
+    deploy::deploy(on_file_read, &mods_path, mods_data)?;
 
     crate::run_update(on_file_read, |cursive| {
         crate::screen(
@@ -272,11 +312,7 @@ fn load_mod(
         }
     }
 
-    Ok(ModContent {
-        binary,
-        text_added,
-        text_modified,
-    })
+    Ok(ModContent::build(binary, text_added, text_modified))
 }
 
 fn extract_data(

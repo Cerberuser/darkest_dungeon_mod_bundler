@@ -97,6 +97,25 @@ pub enum GameDataItem {
     Structured(StructuredItem),
 }
 
+impl BTreePatchable for GameDataItem {
+    fn merge_patches(
+        &self,
+        patches: impl IntoIterator<Item = ModFileChange>,
+    ) -> (Patch, Vec<ModFileChange>) {
+        match self {
+            GameDataItem::Binary(_) => panic!("Attempt to patch the binary item, probably a bug"),
+            GameDataItem::Structured(item) => item.merge_patches(patches),
+        }
+    }
+    fn apply_patch(&mut self, patch: Patch) -> Result<(), ()> {
+        match self {
+            GameDataItem::Binary(_) => panic!("Attempt to patch the binary item, probably a bug"),
+            GameDataItem::Structured(item) => item.apply_patch(patch),
+        }
+    }
+    
+}
+
 pub type GameData = BTreeMap<PathBuf, GameDataItem>;
 
 pub fn load_data(
