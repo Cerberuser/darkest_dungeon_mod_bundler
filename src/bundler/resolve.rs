@@ -1,27 +1,60 @@
-use super::{mod_content::{ModAddedTexts, ModBinaries, ModModifiedTexts}, diff::{
-    Conflict, Conflicts, DataNode, DataNodeContent, DataTree, DataTreeExt, DiffNode, DiffNodeKind,
-    DiffTree, DiffTreeExt, DiffTreesExt, LegacyModContent, LineChange, LineModification,
-    LinesChangeset,
-}};
+use super::mod_content::{ModAddedTexts, ModBinaries, ModModifiedTexts};
 use crossbeam_channel::bounded;
-use cursive::{
-    align::HAlign,
-    traits::{Nameable, Resizable},
-    views::{Button, Dialog, LinearLayout, Panel, SelectView, TextArea, TextView},
-};
+use cursive::views::{Dialog, LinearLayout, Panel, SelectView, TextView};
 use log::*;
+use std::collections::HashMap;
 use std::fmt::Debug;
-use std::{collections::{HashMap, HashSet}, path::PathBuf};
 
-pub fn resolve_binaries(sink: &mut cursive::CbSink, data: HashMap<String, &mut ModBinaries>) -> ModBinaries {
+pub fn resolve_binaries(
+    sink: &mut cursive::CbSink,
+    data: HashMap<String, &mut ModBinaries>,
+) -> ModBinaries {
+    let mut out = ModBinaries::new();
+    // First, drain every input value and put it into the new hashmap - path-based, not mod-based.
+    let mut changes = HashMap::new();
+    for (mod_name, mod_changes) in data {
+        for (path, source) in mod_changes.drain() {
+            // False positive from clippy - https://github.com/rust-lang/rust-clippy/issues/5693
+            #[allow(clippy::or_fun_call)]
+            changes
+                .entry(path)
+                .or_insert(vec![])
+                .push((mod_name.clone(), source));
+        }
+    }
+    // Now, iterate over the resulting map.
+    for (path, changes) in changes {
+        debug_assert!(!changes.is_empty());
+        if changes.len() == 1 {
+            out.insert(path, changes.into_iter().next().unwrap().1);
+        } else {
+            // Conflict! Ask user to resolve it.
+            let choice = ask_for_resolve(
+                sink,
+                format!(
+                    "Multiple mods are using the binary file {}. Please choose one you wish to use the file from",
+                    path.to_string_lossy()
+                ),
+                changes,
+            );
+            out.insert(path, choice);
+        }
+    }
+
+    out
+}
+
+pub fn resolve_added_text(
+    sink: &mut cursive::CbSink,
+    data: HashMap<String, &mut ModAddedTexts>,
+) -> ModAddedTexts {
     todo!()
 }
 
-pub fn resolve_added_text(sink: &mut cursive::CbSink, data: HashMap<String, &mut ModAddedTexts>) -> ModAddedTexts {
-    todo!()
-}
-
-pub fn resolve_modified_text(sink: &mut cursive::CbSink, data: HashMap<String, &mut ModModifiedTexts>) -> ModModifiedTexts {
+pub fn resolve_modified_text(
+    sink: &mut cursive::CbSink,
+    data: HashMap<String, &mut ModModifiedTexts>,
+) -> ModModifiedTexts {
     todo!()
 }
 
@@ -75,37 +108,37 @@ pub fn resolve_modified_text(sink: &mut cursive::CbSink, data: HashMap<String, &
 //     merged
 // }
 
-// fn ask_for_resolve<T: Debug + Send + Clone + 'static>(
-//     sink: &mut cursive::CbSink,
-//     text: impl Into<String>,
-//     options: impl IntoIterator<Item = (String, T)>,
-// ) -> T {
-//     let (sender, receiver) = bounded(0);
-//     let text = text.into();
-//     let options: Vec<_> = options.into_iter().collect();
-//     debug!(
-//         "[resolve]: Asking for source to be used, variants: {:?}",
-//         options.iter().map(|(name, _)| name).collect::<Vec<_>>()
-//     );
-//     crate::run_update(sink, move |cursive| {
-//         crate::push_screen(
-//             cursive,
-//             Dialog::around(
-//                 LinearLayout::vertical()
-//                     .child(TextView::new(text))
-//                     .child(Panel::new(SelectView::new().with_all(options).on_submit(
-//                         move |cursive, value| {
-//                             cursive.pop_layer();
-//                             let _ = sender.send(value.clone());
-//                         },
-//                     ))),
-//             ),
-//         );
-//     });
-//     receiver
-//         .recv()
-//         .expect("Sender was dropped without sending anything")
-// }
+fn ask_for_resolve<T: Debug + Send + Clone + 'static>(
+    sink: &mut cursive::CbSink,
+    text: impl Into<String>,
+    options: impl IntoIterator<Item = (String, T)>,
+) -> T {
+    let (sender, receiver) = bounded(0);
+    let text = text.into();
+    let options: Vec<_> = options.into_iter().collect();
+    debug!(
+        "[resolve]: Asking for source to be used, variants: {:?}",
+        options.iter().map(|(name, _)| name).collect::<Vec<_>>()
+    );
+    crate::run_update(sink, move |cursive| {
+        crate::push_screen(
+            cursive,
+            Dialog::around(
+                LinearLayout::vertical()
+                    .child(TextView::new(text))
+                    .child(Panel::new(SelectView::new().with_all(options).on_submit(
+                        move |cursive, value| {
+                            cursive.pop_layer();
+                            let _ = sender.send(value.clone());
+                        },
+                    ))),
+            ),
+        );
+    });
+    receiver
+        .recv()
+        .expect("Sender was dropped without sending anything")
+}
 
 // fn resolve_binary(sink: &mut cursive::CbSink, target: PathBuf, conflict: Conflict) -> PathBuf {
 //     let variants = conflict.into_iter().map(|(name, node)| match node {

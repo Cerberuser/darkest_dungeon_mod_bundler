@@ -1,6 +1,6 @@
 use std::{path::PathBuf, collections::HashMap};
 use super::diff::Patch;
-use super::game_data::{GameData, StructuredItem};
+use super::game_data::{GameData, StructuredItem, BTreeMappable};
 
 pub type ModBinaries = HashMap<PathBuf, PathBuf>;
 pub type ModAddedTexts = HashMap<PathBuf, StructuredItem>;
@@ -36,6 +36,10 @@ impl ModContent {
         &mut self.text_modified
     }
     pub fn added_to_modified(&mut self, base: &GameData) {
-        todo!();
+        self.text_modified.extend(self.text_added.drain().map(|(key, value)| {
+            let base = base.get(&key).expect("Attempt to modify non-added entry");
+            let value = super::diff::diff(base.to_map(), value.to_map());
+            (key, value)
+        }))
     }
 }

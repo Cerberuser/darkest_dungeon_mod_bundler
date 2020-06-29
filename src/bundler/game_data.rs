@@ -97,6 +97,14 @@ pub enum GameDataItem {
     Structured(StructuredItem),
 }
 
+impl BTreeMappable for GameDataItem {
+    fn to_map(&self) -> DataMap {
+        match self {
+            GameDataItem::Binary(_) => panic!("Attempt to make a map from the binary item, probably a bug"),
+            GameDataItem::Structured(item) => item.to_map(),
+        }
+    }
+}
 impl BTreePatchable for GameDataItem {
     fn merge_patches(
         &self,
