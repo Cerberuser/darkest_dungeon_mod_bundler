@@ -6,7 +6,8 @@ use crate::bundler::{
     ModFileChange,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{io::Read, collections::HashMap, borrow::Cow};
+use log::*;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct StringsTable(HashMap<String, LanguageTable>);
@@ -46,21 +47,40 @@ impl Loadable for StringsTable {
     fn load_raw(path: &std::path::Path) -> std::io::Result<Self> {
         let mut out = HashMap::new();
 
-        let mut xml = std::fs::read_to_string(path)?;
+        let mut xml_raw = vec![];
+        std::fs::File::open(path)?.read_to_end(&mut xml_raw)?;
+        // <HACK> Workaround: localization is sometimes invalid UTF-8
+        let mut xml = match String::from_utf8_lossy(&xml_raw) {
+            Cow::Borrowed(s) => String::from(s),
+            Cow::Owned(s) => {
+                warn!("Got some invalid UTF-8; performed lossy conversion");
+                debug!("Context:");
+                for capture in regex::Regex::new(&format!("(.{{0,10}}){}(.{{0, 10}})", std::char::REPLACEMENT_CHARACTER)).unwrap().captures_iter(&s) {
+                    debug!("...{}{}{}...", &capture[1], std::char::REPLACEMENT_CHARACTER, &capture[2]);
+                }
+                s
+            }
+        };
         // <HACK> Workaround: some localization files contain too big (non-existing) XML version.
         let decl = xml.lines().next().unwrap();
         let version = regex::Regex::new(r#"<?xml version="(.*?)"(.*)>"#).unwrap().captures(decl);
         match version {
             Some(version) => {
-                let version = &version[0];
-                if version > "1" {
+                let version = &version[1];
+                if version > "1.1" {
+                    warn!("Got too large XML version number; replacing declaration line");
+                    debug!("Original declaration line: {}", decl);
+                    debug!("Original version: {}", version);
                     xml = String::from(r#"<?xml version="1.0" encoding="UTF-8"?>"#) + xml.splitn(2, '\n').nth(1).unwrap();
                 }
             }
             _ => {}
         }
         // <HACK> Workaround: some localization files contain invalid comments.
-        xml = regex::Regex::new("<!---(.*?)--->").unwrap().replace_all(&xml, "").into();
+        xml = regex::Regex::new("<!---(.*?)--->").unwrap().replace_all(&xml, |cap: &regex::Captures| {
+            warn!("Found invalid comment: {}", &cap[0]);
+            "".to_string()
+        }).into();
         let document = roxmltree::Document::parse(&xml)
             .expect(&format!("Malformed localization XML {:?}", path));
         let root = document.root_element();

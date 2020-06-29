@@ -23,8 +23,39 @@ pub enum ItemChange {
 pub type Patch = BTreeMap<Vec<String>, ItemChange>;
 
 pub fn diff(original: DataMap, patched: DataMap) -> Patch {
-    log::error!("No diffing is actually done yet");
-    Patch::new()
+    let mut out = Patch::new();
+    let mut original = original.into_iter();
+    let mut patched = patched.into_iter();
+    
+    let mut orig_item = original.next();
+    let mut patched_item = patched.next();
+    loop {
+        if let Some((path, entry)) = patched_item {
+            patched_item = patched.next();
+            loop {
+                if let Some((old_path, old_entry)) = &orig_item {
+                    if old_path > &path {
+                        out.insert(path, ItemChange::Removed);
+                        break;
+                    }
+                    if old_path == &path {
+                        if old_entry != &entry {
+                        out.insert(path, ItemChange::Set(entry));
+                        }
+                        break;
+                    }
+                    orig_item = original.next();
+                } else {
+                    // Original entries are finished, but not the patched ones
+                    out.insert(path, ItemChange::Set(entry));
+                    break;
+                }
+            };
+        } else {
+            break;
+        }
+    }
+    out
 }
 
 /********************************

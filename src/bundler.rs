@@ -167,7 +167,7 @@ fn do_bundle(
 
     // Debugging
     for the_mod in mods {
-        debug!("{:?}", the_mod);
+        debug!("{:?}", the_mod?);
     }
 
     // let (merged, conflicts) = mods.try_merge(Some(on_file_read))?;
@@ -231,16 +231,15 @@ fn load_mod(
         if let Some((path, entry)) = mod_entry {
             mod_entry = mod_entries.next();
             let orig = loop {
-                if let Some((old_path, old_entry)) = orig_entry {
-                    orig_entry = orig_entries.next();
-                    if old_path > &path {
+                if let Some((old_path, old_entry)) = &orig_entry {
+                    if old_path > &&path {
                         break None;
                     }
-                    if old_path == &path {
+                    if old_path == &&path {
                         break Some(old_entry);
                     }
+                    orig_entry = orig_entries.next();
                 } else {
-                    orig_entry = None;
                     break None;
                 }
             };

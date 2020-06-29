@@ -17,7 +17,7 @@ use super::{
 
 macro_rules! game_data_value {
     ($($id:ident($ty:ty)),+ $(,)?) => {
-        #[derive(Serialize, Deserialize, Clone, Debug)]
+        #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
         #[serde(untagged)]
         pub enum GameDataValue {
             $(
