@@ -19,7 +19,13 @@ pub enum ExtractionError {
 macro_rules! io_to_extraction {
     ($path:expr) => {{
         let path = $path.into();
-        move |err| crate::bundler::error::ExtractionError::Io(err, path, Some(format!("file: {}, line: {}", file!(), line!())))
+        move |err| {
+            crate::bundler::error::ExtractionError::Io(
+                err,
+                path,
+                Some(format!("file: {}, line: {}", file!(), line!())),
+            )
+        }
     }};
 }
 impl ExtractionError {

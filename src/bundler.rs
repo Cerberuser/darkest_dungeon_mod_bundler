@@ -1,9 +1,9 @@
 mod deploy;
 mod diff;
 mod error;
-mod resolve;
 mod game_data;
 mod loader;
+mod resolve;
 
 use crate::loader::GlobalData;
 use cursive::{
@@ -11,18 +11,24 @@ use cursive::{
     views::{Dialog, LinearLayout, TextView},
     Cursive,
 };
-use diff::{DataNode, DataTree, DataTreeExt, DiffTreeExt, LegacyModContent, ResultDiffTressExt, DataMap, Patch};
+use diff::{
+    DataMap, DataNode, DataTree, DataTreeExt, DiffTreeExt, LegacyModContent, Patch,
+    ResultDiffTressExt,
+};
 use error::ExtractionError;
+use game_data::{BTreeMappable, GameDataItem, StructuredItem};
 use log::*;
 use std::{
+    collections::{BTreeMap, HashMap},
     fs::read_dir,
-    path::{Path, PathBuf}, collections::HashMap,
+    path::{Path, PathBuf},
 };
 use thiserror::Error;
 
+#[derive(Clone, Debug)]
 struct ModContent {
-    binary: HashMap<PathBuf, DataMap>,
-    text_added: HashMap<PathBuf, DataMap>,
+    binary: HashMap<PathBuf, PathBuf>,
+    text_added: HashMap<PathBuf, StructuredItem>,
     text_modified: HashMap<PathBuf, Patch>,
 }
 
@@ -91,9 +97,7 @@ fn do_bundle(
     let path = crate::paths::game(&global_data.base_path);
 
     let mut on_load = on_file_read.clone();
-    let on_load = move |s: String| {
-        set_file_updated(&mut on_load, "Reading", s)
-    };
+    let on_load = move |s: String| set_file_updated(&mut on_load, "Reading", s);
     let mut data = game_data::load_data(on_load, &path)?;
 
     info!("Vanilla game data extracted");
@@ -105,9 +109,7 @@ fn do_bundle(
     });
 
     let mut on_load = on_file_read.clone();
-    let on_load = move |s: String| {
-        set_file_updated(&mut on_load, "Reading", s)
-    };
+    let on_load = move |s: String| set_file_updated(&mut on_load, "Reading", s);
 
     info!("Extracting DLC data");
     let dlc_path = path.join("dlc");
@@ -142,26 +144,31 @@ fn do_bundle(
     }
     info!("DLC data extracted and merged into vanilla game");
 
-    // crate::run_update(on_file_read, |cursive| {
-    //     cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
-    //         dialog.set_title("Loading workshop data...");
-    //         dialog.call_on_name("Loading part", |text: &mut TextView| {
-    //             text.set_content(" ");
-    //         })
-    //     });
-    // });
+    crate::run_update(on_file_read, |cursive| {
+        cursive.call_on_name("Loading dialog", |dialog: &mut Dialog| {
+            dialog.set_title("Loading workshop data...");
+            dialog.call_on_name("Loading part", |text: &mut TextView| {
+                text.set_content(" ");
+            })
+        });
+    });
 
-    // info!("Reading selected mods");
-    // let mut for_mods_extract = on_file_read.clone();
-    // let mods = global_data
-    //     .mods
-    //     .into_iter()
-    //     .inspect(|the_mod| info!("Reading mod: {:?}", the_mod))
-    //     .filter(|the_mod| the_mod.selected)
-    //     .map(|the_mod| {
-    //         info!("Extracting data from selected mod: {}", the_mod.name());
-    //         extract_mod(&mut for_mods_extract, the_mod, &original_data)
-    //     });
+    info!("Reading selected mods");
+    let mut for_mods_extract = on_file_read.clone();
+    let mods = global_data
+        .mods
+        .into_iter()
+        .inspect(|the_mod| info!("Reading mod: {:?}", the_mod))
+        .filter(|the_mod| the_mod.selected)
+        .map(|the_mod| {
+            info!("Extracting data from selected mod: {}", the_mod.name());
+            load_mod(&mut for_mods_extract, the_mod, &data)
+        });
+
+    // Debugging
+    for the_mod in mods {
+        debug!("{:?}", the_mod);
+    }
 
     // let (merged, conflicts) = mods.try_merge(Some(on_file_read))?;
     // info!("Merged mods data, got {} conflicts", conflicts.len());
@@ -191,23 +198,86 @@ fn do_bundle(
     Ok(())
 }
 
-fn extract_mod(
+fn load_mod(
     on_file_read: &mut cursive::CbSink,
     the_mod: crate::loader::Mod,
-    original_data: &DataTree,
-) -> Result<LegacyModContent, ExtractionError> {
+    game_data: &game_data::GameData,
+) -> Result<ModContent, ExtractionError> {
     let title = the_mod.name().to_owned();
     crate::run_update(on_file_read, move |cursive| {
         cursive.call_on_name("Loading part", |text: &mut TextView| {
             text.set_content(title);
         });
     });
-    let content = extract_data(on_file_read, &the_mod.path, &the_mod.path, true)?;
+
+    let mut on_load = on_file_read.clone();
+    let on_load = move |s: String| set_file_updated(&mut on_load, "Reading", s);
+    let content = game_data::load_data(on_load, &the_mod.path)?;
     info!(
         "Mod {}: Data successfully extracted, calculating patch",
         the_mod.name()
     );
-    Ok(LegacyModContent::new(the_mod.name(), original_data.diff(content)))
+
+    let mut orig_entries = game_data.iter();
+    let mut mod_entries = content.into_iter();
+
+    let mut binary = HashMap::new();
+    let mut text_added = HashMap::new();
+    let mut text_modified = HashMap::new();
+
+    let mut orig_entry = orig_entries.next();
+    let mut mod_entry = mod_entries.next();
+    loop {
+        if let Some((path, entry)) = mod_entry {
+            mod_entry = mod_entries.next();
+            let orig = loop {
+                if let Some((old_path, old_entry)) = orig_entry {
+                    orig_entry = orig_entries.next();
+                    if old_path > &path {
+                        break None;
+                    }
+                    if old_path == &path {
+                        break Some(old_entry);
+                    }
+                } else {
+                    orig_entry = None;
+                    break None;
+                }
+            };
+            match orig {
+                Some(old_entry) => match (old_entry, entry) {
+                    (GameDataItem::Binary(_), GameDataItem::Binary(source)) => {
+                        let existing = binary.insert(path, source);
+                        debug_assert!(existing.is_none());
+                    }
+                    (GameDataItem::Structured(orig), GameDataItem::Structured(ref modded)) => {
+                        let existing =
+                            text_modified.insert(path, diff::diff(orig.to_map(), modded.to_map()));
+                        debug_assert!(existing.is_none());
+                    }
+                    _ => unreachable!(),
+                },
+                None => match entry {
+                    GameDataItem::Binary(source) => {
+                        let existing = binary.insert(path, source);
+                        debug_assert!(existing.is_none());
+                    }
+                    GameDataItem::Structured(item) => {
+                        let existing = text_added.insert(path, item);
+                        debug_assert!(existing.is_none());
+                    }
+                },
+            }
+        } else {
+            break;
+        }
+    }
+
+    Ok(ModContent {
+        binary,
+        text_added,
+        text_modified,
+    })
 }
 
 fn extract_data(

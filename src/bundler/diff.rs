@@ -1,3 +1,4 @@
+use super::game_data::GameDataValue;
 use cursive::{
     traits::Finder,
     views::{Dialog, TextView},
@@ -10,20 +11,20 @@ use std::{
     path::PathBuf,
     rc::Rc,
 };
-use super::game_data::GameDataValue;
-
 
 pub type DataMap = BTreeMap<Vec<String>, GameDataValue>;
 
+#[derive(Clone, Debug)]
 pub enum ItemChange {
     Set(GameDataValue),
-    Removed
+    Removed,
 }
 
 pub type Patch = BTreeMap<Vec<String>, ItemChange>;
 
-pub fn diff<K, V: Eq>(original: DataMap, patched: DataMap) -> Patch {
-    todo!();
+pub fn diff(original: DataMap, patched: DataMap) -> Patch {
+    log::error!("No diffing is actually done yet");
+    Patch::new()
 }
 
 /********************************

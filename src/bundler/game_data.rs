@@ -12,8 +12,7 @@ pub use traits::*;
 
 use super::{
     diff::{DataMap, Patch},
-    ModFileChange,
-    ExtractionError,
+    ExtractionError, ModFileChange,
 };
 
 macro_rules! game_data_value {

@@ -16,8 +16,7 @@ Also, if you experience unexpected crush or some other error, run the executable
 
 There are several limitations in current version:
 - The program can only work with Steam version of Darkest Dungeon and reads only mods downloaded from Steam Workshop.
-- If several mods add content after the same line of original file, the bundler will exit with error.
-- If some mod adds content to the beginning of text file, this content will be added after the first line of the file.
+- The `.darkest` files are parsed generically and only after that semantically, so some combinations which seem to work in game can't be used with bundler - the notable example being mod #1964478949 "All 7 Combat Skills Vanilla And DLC", which introduces a seemingly broken line into Musketeer data.
 
 These limitations may be fixed in the future versions, although I can't promise anything, since some changes might require major rewrite.
 

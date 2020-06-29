@@ -35,10 +35,12 @@ pub fn collect_paths(
     Ok(out)
 }
 
-pub fn load_by_path<R>(base_path: &Path, path: &Path, loader: impl FnOnce(&Path) -> std::io::Result<R>) -> std::io::Result<(PathBuf, R)> {
-    loader(&path).and_then(|data| {
-        rel_path(&base_path, path).map(|path| (path, data))
-    })
+pub fn load_by_path<R>(
+    base_path: &Path,
+    path: &Path,
+    loader: impl FnOnce(&Path) -> std::io::Result<R>,
+) -> std::io::Result<(PathBuf, R)> {
+    loader(&path).and_then(|data| rel_path(&base_path, path).map(|path| (path, data)))
 }
 
 pub fn collect_tree<R>(

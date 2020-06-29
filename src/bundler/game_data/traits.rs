@@ -1,18 +1,17 @@
 use super::{
     super::{
         diff::{DataMap, Patch},
-        ModFileChange,
-        ExtractionError,
+        ExtractionError, ModFileChange,
     },
     GameData, GameDataItem, GameDataValue, StructuredItem,
 };
 use crate::bundler::loader::utils::rel_path;
+use log::*;
 use std::{
     collections::{BTreeMap, HashMap},
     io::Result as IoResult,
     path::{Path, PathBuf},
 };
-use log::*;
 
 pub trait BTreeLinkedMappable: Sized + Clone {
     fn from_iter(_: impl IntoIterator<Item = String>) -> Self;
@@ -44,7 +43,11 @@ impl BTreeLinkedMappable for Vec<String> {
 
 pub trait BTreeSetable: BTreeLinkedMappable {
     fn to_set(&self) -> DataMap {
-        self.list().iter().cloned().map(|s| (vec![s], ().into())).collect()
+        self.list()
+            .iter()
+            .cloned()
+            .map(|s| (vec![s], ().into()))
+            .collect()
     }
 }
 impl<T: BTreeLinkedMappable> BTreeSetable for T {}
@@ -113,14 +116,17 @@ pub trait Loadable: Sized {
 macro_rules! load {
     ($on_load:expr, $root_path:expr) => {{
         let root_path = $root_path.as_ref();
-        Self::prepare_list(root_path).map_err(crate::io_to_extraction!(root_path))?
+        Self::prepare_list(root_path)
+            .map_err(crate::io_to_extraction!(root_path))?
             .into_iter()
             .map(move |full_path| {
                 debug!("Starting loading from path {:?}", full_path);
-                let path = rel_path(root_path, &full_path).map_err(crate::io_to_extraction!(&full_path))?;
+                let path = rel_path(root_path, &full_path)
+                    .map_err(crate::io_to_extraction!(&full_path))?;
                 debug!("Calculated relative path: {:?}", path);
                 $on_load(path.to_string_lossy().to_string());
-                let data = Self::load_raw(&full_path).map_err(crate::io_to_extraction!(&full_path))?;
+                let data =
+                    Self::load_raw(&full_path).map_err(crate::io_to_extraction!(&full_path))?;
                 Ok((path, data))
             })
     }};
@@ -146,7 +152,7 @@ pub trait LoadableStructured: Loadable + Into<StructuredItem> {
         root_path: impl AsRef<Path>,
     ) -> Result<GameData, ExtractionError> {
         load!(on_load, root_path)
-            .map(|res| res.map(|(key, value)|(key, GameDataItem::Structured(value.into()))))
+            .map(|res| res.map(|(key, value)| (key, GameDataItem::Structured(value.into()))))
             .collect()
     }
 }

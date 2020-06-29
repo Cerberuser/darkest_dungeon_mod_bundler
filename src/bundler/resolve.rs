@@ -1,6 +1,7 @@
 use super::diff::{
     Conflict, Conflicts, DataNode, DataNodeContent, DataTree, DataTreeExt, DiffNode, DiffNodeKind,
-    DiffTree, DiffTreeExt, DiffTreesExt, LineChange, LineModification, LinesChangeset, LegacyModContent,
+    DiffTree, DiffTreeExt, DiffTreesExt, LegacyModContent, LineChange, LineModification,
+    LinesChangeset,
 };
 use crossbeam_channel::bounded;
 use cursive::{

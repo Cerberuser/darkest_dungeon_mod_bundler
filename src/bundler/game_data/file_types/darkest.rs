@@ -8,7 +8,7 @@ use combine::{
     },
     sep_by1, ParseError, ParseResult, Parser, Stream, StreamOnce,
 };
-use std::{borrow::Borrow, hash::Hash, marker::PhantomData, ops::Deref};
+use std::{borrow::Borrow, hash::Hash, marker::PhantomData, ops::Deref, fmt::Display};
 
 #[derive(Clone, Debug, Default)]
 pub struct DarkestEntry(HashMap<String, Vec<String>>);
@@ -35,6 +35,15 @@ impl IntoIterator for DarkestEntry {
     type IntoIter = IntoIter<String, Vec<String>>;
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
+    }
+}
+
+impl Display for DarkestEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (key, values) in &self.0 {
+            write!(f, ".{} {} ", key, values.join(" "))?;
+        }
+        Ok(())
     }
 }
 

@@ -46,8 +46,23 @@ impl Loadable for StringsTable {
     fn load_raw(path: &std::path::Path) -> std::io::Result<Self> {
         let mut out = HashMap::new();
 
-        let xml = std::fs::read_to_string(path)?;
-        let document = roxmltree::Document::parse(&xml).expect("Malformed localization XML");
+        let mut xml = std::fs::read_to_string(path)?;
+        // <HACK> Workaround: some localization files contain too big (non-existing) XML version.
+        let decl = xml.lines().next().unwrap();
+        let version = regex::Regex::new(r#"<?xml version="(.*?)"(.*)>"#).unwrap().captures(decl);
+        match version {
+            Some(version) => {
+                let version = &version[0];
+                if version > "1" {
+                    xml = String::from(r#"<?xml version="1.0" encoding="UTF-8"?>"#) + xml.splitn(2, '\n').nth(1).unwrap();
+                }
+            }
+            _ => {}
+        }
+        // <HACK> Workaround: some localization files contain invalid comments.
+        xml = regex::Regex::new("<!---(.*?)--->").unwrap().replace_all(&xml, "").into();
+        let document = roxmltree::Document::parse(&xml)
+            .expect(&format!("Malformed localization XML {:?}", path));
         let root = document.root_element();
         debug_assert_eq!(root.tag_name().name(), "root");
         for child in root.children() {

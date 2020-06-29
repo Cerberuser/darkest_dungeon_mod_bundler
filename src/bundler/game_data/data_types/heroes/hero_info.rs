@@ -7,7 +7,15 @@ use crate::bundler::{
     loader::utils::{collect_paths, ends_with},
 };
 use combine::EasyParser;
-use std::{collections::HashMap, convert::TryInto};
+use std::{collections::HashMap, convert::TryInto, num::ParseFloatError};
+
+fn parse_percent(value: &str) -> Result<f32, ParseFloatError> {
+    if value.ends_with('%') {
+        Ok(value.trim_end_matches('%').parse::<f32>()? / 100.0)
+    } else {
+        value.parse()
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct HeroInfo {
@@ -22,6 +30,8 @@ pub struct HeroInfo {
     extra_stack_limit: Vec<String>,
     deaths_door: DeathsDoor,
     modes: Modes,
+    incompatible_party_member: Incompatibilities,
+    death_reaction: DeathReaction,
     other: HashMap<(String, String), Vec<String>>,
 }
 
@@ -40,6 +50,11 @@ impl BTreeMappable for HeroInfo {
         inner.extend_prefixed("extra_stack_limit", self.extra_stack_limit.to_set());
         inner.extend_prefixed("deaths_door", self.deaths_door.to_map());
         inner.extend_prefixed("modes", self.modes.to_map());
+        inner.extend_prefixed(
+            "incompatible_party_member",
+            self.incompatible_party_member.to_map(),
+        );
+        inner.extend_prefixed("death_reaction", self.death_reaction.to_map());
         for (key, value) in &self.other {
             let mut intermid = DataMap::new();
             intermid.extend_prefixed(&key.1, value.to_set());
@@ -102,6 +117,8 @@ impl Loadable for HeroInfo {
         let mut extra_stack_limit = vec![];
         let mut deaths_door = None;
         let mut modes = vec![];
+        let mut incompatible_party_member = vec![];
+        let mut death_reaction = vec![];
         let mut other = HashMap::new();
 
         for (key, entry) in darkest_file {
@@ -125,6 +142,8 @@ impl Loadable for HeroInfo {
                     debug_assert!(existing.is_none());
                 }
                 "mode" => modes.push(entry),
+                "incompatible_party_member" => incompatible_party_member.push(entry),
+                "death_reaction" => death_reaction.push(entry),
                 _ => {
                     for (subkey, values) in entry {
                         let existing = other.insert((key.clone(), subkey), values);
@@ -145,6 +164,8 @@ impl Loadable for HeroInfo {
             extra_stack_limit,
             deaths_door: DeathsDoor::from_entry(deaths_door.unwrap()),
             modes: Modes::from_entries(modes),
+            incompatible_party_member: Incompatibilities::from_entries(incompatible_party_member),
+            death_reaction: DeathReaction::from_entries(death_reaction),
             other,
         })
     }
@@ -152,14 +173,14 @@ impl Loadable for HeroInfo {
 
 #[derive(Clone, Debug)]
 struct Resistances {
-    stun: i32,
-    poison: i32,
-    bleed: i32,
-    disease: i32,
-    moving: i32,
-    debuff: i32,
-    death_blow: i32,
-    trap: i32,
+    stun: f32,
+    poison: f32,
+    bleed: f32,
+    disease: f32,
+    moving: f32,
+    debuff: f32,
+    death_blow: f32,
+    trap: f32,
 }
 
 impl Resistances {
@@ -169,7 +190,7 @@ impl Resistances {
                 $(
                     let $ident = input.get($key).unwrap_or_else(|| panic!("Malformed hero information file, no {} resistance found", $key));
                     assert_eq!($ident.len(), 1, "Malformed hero information file: {} resistance have multiple values", $key);
-                    let $ident = $ident[0].trim_end_matches('%').parse().unwrap_or_else(|_| panic!("Malformed hero information file, {} resistance is not an integer", $key));
+                    let $ident = parse_percent(&$ident[0]).unwrap_or_else(|_| panic!("Malformed hero information file, {} resistance is not an percent-like value", $key));
                 )+
             };
         }
@@ -231,17 +252,18 @@ impl Weapons {
         Self(out.to_owned())
     }
 }
+
 impl Weapon {
     fn from_entry(input: DarkestEntry) -> Self {
         let mut out = Self::default();
-        out.atk = input
-            .get("atk")
-            .expect("Weapon ATK not found")
-            .get(0)
-            .expect("Weapon ATK field is empty")
-            .trim_end_matches('%')
-            .parse()
-            .expect("Weapon ATK is not a number");
+        out.atk = parse_percent(
+            input
+                .get("atk")
+                .expect("Weapon ATK not found")
+                .get(0)
+                .expect("Weapon ATK field is empty"),
+        )
+        .expect("Weapon ATK is not a number");
         let mut dmg = input
             .get("dmg")
             .expect("Weapon DMG field not found")
@@ -251,13 +273,12 @@ impl Weapon {
             dmg.next().expect("Weapon DMG field is empty"),
             dmg.next().expect("Weapon DMG field has only one entry"),
         );
-        out.crit = input.get("crit").expect("Weapon CRIT field not found")[0]
-            .trim_end_matches('%')
-            .parse()
+        out.crit = parse_percent(&input.get("crit").expect("Weapon CRIT field not found")[0])
             .expect("Weapon CRIT field is not a number");
-        out.spd = input.get("spd").expect("Weapon SPD field not found")[0]
+        let spd = input.get("spd").expect("Weapon SPD field not found").get(0).expect("Weapon SPD field is empty");
+        out.spd = spd
             .parse()
-            .expect("Weapon SPD field is not a number");
+            .expect(&format!("Weapon SPD field is not a number: {}", spd));
         out
     }
 }
@@ -289,7 +310,7 @@ struct Armours([Armour; 5]);
 #[derive(Clone, Debug, Default)]
 struct Armour {
     def: f32,
-    prot: i32,
+    prot: f32,
     hp: i32,
     spd: i32,
 }
@@ -307,12 +328,9 @@ impl Armours {
 impl Armour {
     fn from_entry(input: DarkestEntry) -> Self {
         let mut out = Self::default();
-        out.def = input.get("def").expect("Armour DEF field not found")[0]
-            .trim_end_matches('%')
-            .parse()
+        out.def = parse_percent(&input.get("def").expect("Armour DEF field not found")[0])
             .expect("Armour DEF field is not a number");
-        out.prot = input.get("prot").expect("Armour PROT field not found")[0]
-            .parse()
+        out.prot = parse_percent(&input.get("prot").expect("Armour PROT field not found")[0])
             .expect("Armour PROT field is not a number");
         out.hp = input.get("hp").expect("Armour HP field not found")[0]
             .parse()
@@ -504,5 +522,43 @@ impl BTreeMappable for Mode {
             out.extend_prefixed(key, value.to_set());
         }
         out
+    }
+}
+
+#[derive(Clone, Debug)]
+struct Incompatibilities(HashMap<String, Vec<String>>);
+impl Incompatibilities {
+    fn from_entries(input: Vec<DarkestEntry>) -> Self {
+        let mut map = HashMap::new();
+        for mut entry in input {
+            let id = entry.remove("id").unwrap().remove(0);
+            let tag = entry.remove("hero_tag").unwrap().remove(0);
+            map.entry(id).or_insert(vec![]).push(tag);
+        }
+        Self(map)
+    }
+}
+
+impl BTreeMappable for Incompatibilities {
+    fn to_map(&self) -> DataMap {
+        let mut out = DataMap::new();
+        for (key, value) in &self.0 {
+            out.extend_prefixed(key, value.to_set());
+        }
+        out
+    }
+}
+
+#[derive(Clone, Debug)]
+struct DeathReaction(Vec<String>);
+impl DeathReaction {
+    fn from_entries(input: Vec<DarkestEntry>) -> Self {
+        Self(input.into_iter().map(|entry| entry.to_string()).collect())
+    }
+}
+
+impl BTreeMappable for DeathReaction {
+    fn to_map(&self) -> DataMap {
+        self.0.to_set()
     }
 }
