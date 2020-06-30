@@ -1,5 +1,5 @@
 use crate::bundler::{
-    diff::{Conflicts, DataMap, ItemChange, Patch},
+    diff::{self, Conflicts, DataMap, ItemChange, Patch},
     game_data::{
         file_types::{darkest_parser, DarkestEntry},
         BTreeMapExt, BTreeMappable, BTreePatchable, BTreeSetable, GameDataValue, Loadable,
@@ -8,6 +8,11 @@ use crate::bundler::{
     ModFileChange,
 };
 use combine::EasyParser;
+use crossbeam_channel::bounded;
+use cursive::{
+    traits::{Nameable, Resizable},
+    views::{Button, Dialog, EditView, LinearLayout, Panel, TextArea, TextView},
+};
 use log::debug;
 use std::{collections::HashMap, convert::TryInto, num::ParseFloatError};
 
@@ -168,7 +173,7 @@ fn next_effect(
         .cloned()
 }
 
-fn patch_skill_effects(skill: &mut Skill, patch: &Patch, prefix: &[String]) {
+fn patch_skill_effects(orig_effects: &mut Vec<String>, patch: &Patch, prefix: &[String]) {
     let prefix: Vec<_> = prefix
         .iter()
         .cloned()
@@ -178,7 +183,7 @@ fn patch_skill_effects(skill: &mut Skill, patch: &Patch, prefix: &[String]) {
     let start_patched = patch.get(&prefix);
     if let Some(ItemChange::Removed) = &start_patched {
         // Effects are dropped entirely by patch
-        skill.effects = vec![];
+        *orig_effects = vec![];
         return;
     }
     // Now, there might be some effects; let's find the start of them
@@ -187,16 +192,16 @@ fn patch_skill_effects(skill: &mut Skill, patch: &Patch, prefix: &[String]) {
             ItemChange::Set(GameDataValue::String(effect)) => effect,
             _ => panic!("Skill effects can only be strings"),
         })
-        .or_else(|| skill.effects.get(0));
+        .or_else(|| orig_effects.get(0));
     if let Some(cur) = start {
         let mut cur = cur.to_string();
         // There really are some effects - either patch set them start, or the start remained unchanged
         effects.push(cur.clone());
-        while let Some(next) = next_effect(&cur, &skill.effects, patch, &prefix) {
+        while let Some(next) = next_effect(&cur, &*orig_effects, patch, &prefix) {
             effects.push(next.clone());
             cur = next;
         }
-        skill.effects = effects;
+        *orig_effects = effects;
     }
     // Otherwise, there were no effects and there are no effects.
 }
@@ -219,18 +224,147 @@ fn patch_list(list: &mut Vec<String>, mut path: Vec<String>, change: ItemChange)
     };
 }
 
+fn resolve_skill_effects(
+    skill_data: &Skill,
+    skill_name: String,
+    conflicts: &Conflicts,
+    prefix: &[String],
+    sink: &mut cursive::CbSink,
+    self_id: String,
+) -> Patch {
+    let mut skill_conflicts: Conflicts = conflicts
+        .iter()
+        .filter(|(key, _)| key.iter().zip(prefix).all(|(key, prefix)| key == prefix))
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect();
+    debug!("Got conflicts for skill: {} - {:?}", skill_name, skill_conflicts);
+    if skill_conflicts.is_empty() {
+        // This skill effects have no problem with it
+        return Patch::new();
+    }
+    // Now, we have to build a chain for every file in use.
+    let mut conflict_chains: HashMap<String, HashMap<String, Option<String>>> = HashMap::new();
+    let mut conflict_starts: HashMap<String, Option<String>> = match skill_conflicts.remove(prefix)
+    {
+        Some(v) => v
+            .into_iter()
+            .map(|(mod_name, item)| {
+                (
+                    mod_name,
+                    item.into_option().and_then(GameDataValue::unwrap_list_next),
+                )
+            })
+            .collect(),
+        None => HashMap::new(),
+    };
+    for (mut path, changes) in skill_conflicts {
+        assert!(path.len() == 4);
+        let key = path.pop().unwrap();
+        for (mod_name, change) in changes {
+            conflict_chains
+                .entry(mod_name.clone())
+                .or_default()
+                .insert(key.clone(), change.unwrap_set().unwrap_list_next());
+            conflict_starts
+                .entry(mod_name)
+                .or_insert_with(|| skill_data.effects.get(0).cloned());
+        }
+    }
+    // Now, we again re-grouped all the changes on per-mod basis; let's build the chains
+    let mut chains: HashMap<String, Vec<String>> = conflict_starts
+        .into_iter()
+        .map(|(key, value)| (key, value.into_iter().collect()))
+        .collect();
+
+    for (key, steps) in &mut conflict_chains {
+        let chain = chains.get_mut(key).unwrap();
+        if chain.is_empty() {
+            break;
+        }
+        let mut last = chain.get(0).unwrap().clone();
+        loop {
+            let next = steps
+                .get(&last)
+                .cloned()
+                .or_else(|| {
+                    let index = skill_data.effects.iter().position(|eff| eff == &last);
+                    index.map(|index| skill_data.effects.get(index + 1).cloned())
+                })
+                .expect("Chain is broken - neither the patch nor the original can continue");
+            match next {
+                Some(next) => {
+                    chain.push(next.clone());
+                    last = next;
+                }
+                None => break,
+            }
+        }
+    }
+    // ...and now, finally, ask the user to choose the correct chain.
+    // For now, simply as text.
+    let (sender, receiver) = bounded(0);
+    crate::run_update(sink, move |cursive| {
+        let mut layout = LinearLayout::vertical();
+        chains.into_iter().for_each(|(name, line)| {
+            let line = line.join(" ");
+            layout.add_child(
+                LinearLayout::horizontal()
+                    .child(Panel::new(TextView::new(line.clone())).title(name))
+                    .child(Button::new("Move to input", move |cursive| {
+                        cursive.call_on_name("Line resolve edit", |edit: &mut TextArea| {
+                            edit.set_content(line.clone())
+                        });
+                    })),
+            )
+        });
+        let resolve_sender = sender.clone();
+        crate::push_screen(
+            cursive,
+            Dialog::around(
+                layout.child(TextArea::new().with_name("Line resolve edit").full_width()),
+            )
+            .title(format!(
+                "Resolving skill effects: hero ID = {}, skill = {}",
+                self_id, skill_name
+            ))
+            .button("Resolve as set", move |cursive| {
+                let value = cursive
+                    .call_on_name("Line resolve edit", |edit: &mut TextArea| {
+                        edit.get_content().to_owned()
+                    })
+                    .unwrap();
+                cursive.pop_layer();
+                resolve_sender.send(value).unwrap();
+            })
+            .button("Resolve as empty", move |cursive| {
+                cursive.pop_layer();
+                sender.send("".into()).unwrap();
+            })
+            .h_align(cursive::align::HAlign::Center),
+        );
+    });
+    let choice: String = receiver
+        .recv()
+        .expect("Sender was dropped without sending anything");
+    let (values, rest) = DarkestEntry::values()
+        .easy_parse(choice.as_str())
+        .expect("Invalid string given as resolved effects list");
+    assert!(rest.is_empty(), "Something was left unparsed: {}", rest);
+    diff::diff(skill_data.effects.to_map(), values.to_map())
+}
+
 impl BTreePatchable for HeroInfo {
     fn apply_patch(&mut self, patch: Patch) -> Result<(), ()> {
-        // First, we should collect all effects used in patch.
+        // First, we should collect all skill effects used in patch.
         for ((skill, level), ref mut skill_data) in self.skills.0.iter_mut() {
             patch_skill_effects(
-                skill_data,
+                &mut skill_data.effects,
                 &patch,
                 &["skills".into(), format!("{}_{}", skill, level)],
             );
         }
         patch_skill_effects(
-            &mut self.riposte_skill,
+            &mut self.riposte_skill.effects,
             &patch,
             &["riposte_skill".into()],
         );
@@ -321,7 +455,7 @@ impl BTreePatchable for HeroInfo {
             }
         }
         let path = vec!["riposte_skill".into(), "effects".into()];
-        if riposte_effects.len() == 1 {
+        if riposte_effects.len() <= 1 {
             merged.insert(path, riposte_effects.remove(0).1);
         } else {
             unmerged.insert(path, riposte_effects);
@@ -331,7 +465,133 @@ impl BTreePatchable for HeroInfo {
     }
 
     fn ask_for_resolve(&self, sink: &mut cursive::CbSink, conflicts: Conflicts) -> Patch {
-        todo!()
+        let mut out = Patch::new();
+
+        // First, try to merge all conflicts related to skill effects.
+        for ((skill, level), skill_data) in self.skills.0.iter() {
+            let skill_name = format!("{}_{}", skill, level);
+            let prefix = &["skills".into(), skill_name.clone(), "effects".into()] as &[String];
+            let effects_patch = resolve_skill_effects(
+                skill_data,
+                skill_name.clone(),
+                &conflicts,
+                prefix,
+                sink,
+                self.id.clone(),
+            );
+            let skill_patch = {
+                let mut patch = Patch::new();
+                patch.extend_prefixed("effects", effects_patch);
+                patch
+            };
+            let skill_patch = {
+                let mut patch = Patch::new();
+                patch.extend_prefixed(&skill_name, skill_patch);
+                patch
+            };
+            out.extend_prefixed("skills", skill_patch);
+        }
+        // Not to forget about riposte!
+        let prefix = &["riposte_skill".into(), "effects".into()] as &[String];
+        let effects_patch = resolve_skill_effects(
+            &self.riposte_skill,
+            "Riposte".into(),
+            &conflicts,
+            prefix,
+            sink,
+            self.id.clone(),
+        );
+        let skill_patch = {
+            let mut patch = Patch::new();
+            patch.extend_prefixed("effects", effects_patch);
+            patch
+        };
+        out.extend_prefixed("riposte_skill", skill_patch);
+        // Now that's easier - we can simply iterate over changes one-by-one.
+        // Just don't forget that the effects were already dealt with.
+        for (path, changes) in conflicts {
+            if path[0].as_str() == "skills" && path[2].as_str() == "effects" {
+                continue;
+            }
+            if path[0].as_str() == "riposte_skill" && path[1].as_str() == "effects" {
+                continue;
+            }
+            let (sender, receiver) = bounded(0);
+            let self_id = self.id.clone();
+            let path_str = path.join(" ");
+            crate::run_update(sink, move |cursive| {
+                let mut layout = LinearLayout::vertical();
+                changes.into_iter().for_each(|(name, line)| {
+                    let value = line.into_option();
+                    layout.add_child(
+                        LinearLayout::horizontal()
+                            .child(
+                                Panel::new(TextView::new(
+                                    value
+                                        .as_ref()
+                                        .map(GameDataValue::to_string)
+                                        .unwrap_or_default(),
+                                ))
+                                .title(name),
+                            )
+                            .child(Button::new("Move to input", move |cursive| {
+                                cursive.call_on_name("Line resolve edit", |edit: &mut TextArea| {
+                                    edit.set_content(
+                                        value
+                                            .as_ref()
+                                            .map(GameDataValue::to_string)
+                                            .unwrap_or_default(),
+                                    )
+                                });
+                            })),
+                    )
+                });
+                let resolve_sender = sender.clone();
+                crate::push_screen(
+                    cursive,
+                    Dialog::around(
+                        layout.child(EditView::new().with_name("Line resolve edit").full_width()),
+                    )
+                    .title(format!(
+                        "Resolving hero info: hero ID = {}, path = {}",
+                        self_id, path_str
+                    ))
+                    .button("Resolve", move |cursive| {
+                        let value = cursive
+                            .call_on_name("Line resolve edit", |edit: &mut TextArea| {
+                                edit.get_content().to_owned()
+                            })
+                            .unwrap();
+                        cursive.pop_layer();
+                        resolve_sender.send(Some(value)).unwrap();
+                    })
+                    .button("Remove", move |cursive| {
+                        cursive.pop_layer();
+                        sender.send(None).unwrap();
+                    })
+                    .h_align(cursive::align::HAlign::Center),
+                );
+            });
+            let choice = receiver
+                .recv()
+                .expect("Sender was dropped without sending anything");
+            // <HACK> I'm not sure how to do it better...
+            let source_value = self.to_map().get(&path).cloned();
+            let to_patch = match (source_value, choice) {
+                (Some(mut value), Some(choice)) => {
+                    value
+                        .parse_replace(&choice)
+                        .expect("Invalid value provided as resolve");
+                    ItemChange::Set(value)
+                }
+                // This will fail if some non-string value is added...
+                (None, Some(choice)) => ItemChange::Set(GameDataValue::String(choice)),
+                (_, None) => ItemChange::Removed,
+            };
+            out.insert(path, to_patch);
+        }
+
+        out
     }
 }
 
@@ -942,10 +1202,20 @@ impl Skill {
     }
     fn apply(&mut self, mut path: Vec<String>, change: ItemChange) {
         let key = match path[0].as_str() {
-            "skills" => path.remove(2),
-            "riposte_skill" => path.remove(1),
+            "skills" => {
+                assert!(path.len() == 3);
+                path.pop().unwrap()
+            }
+            "riposte_skill" => {
+                assert!(path.len() == 2);
+                path.pop().unwrap()
+            }
             _ => panic!("Unexpected path in hero info: {:?}", path),
         };
+        if path.pop() == Some("effects".to_string()) {
+            // they should be patched in other way
+            return;
+        }
         match change.into_option().map(GameDataValue::unwrap_string) {
             Some(s) => self.other.insert(key, s),
             None => self.other.remove(&key),

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
+    path::{Path, PathBuf}, fmt::Display,
 };
 
 pub mod data_types;
@@ -14,6 +14,7 @@ use super::{
     diff::{DataMap, Patch, Conflicts},
     ExtractionError, ModFileChange,
 };
+use log::debug;
 
 macro_rules! game_data_value {
     ($($id:ident($ty:ty)),+ $(,)?) => {
@@ -78,6 +79,35 @@ impl GameDataValue {
         match self {
             GameDataValue::Unit(()) => (),
             otherwise => panic!("Expected unit type (a marker of key existence), got {:?}", otherwise),
+        }
+    }
+    pub fn parse_replace(&mut self, input: &str) -> Result<(), ()> {
+        match self {
+            GameDataValue::Bool(b) => *b = input.parse().map_err(|_| {})?,
+            GameDataValue::Int(i) => *i = input.parse().map_err(|_| {})?,
+            GameDataValue::Float(f) => *f = input.parse().map_err(|_| {})?,
+            GameDataValue::String(s) => *s = input.parse().map_err(|_| {})?,
+            _ => panic!("Next-like and Unit-like values can't be parsed into"),
+        };
+        Ok(())
+    }
+}
+impl Display for GameDataValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GameDataValue::Bool(b) => b.fmt(f),
+            GameDataValue::Int(i) => i.fmt(f),
+            GameDataValue::Float(d) => d.fmt(f),
+            GameDataValue::String(s) => s.fmt(f),
+            GameDataValue::Next(Some(s)) => s.fmt(f),
+            GameDataValue::Next(None) => {
+                debug!("Trying to Display the GameDataValue::Next(None), outputting nothing");
+                Ok(())
+            }
+            GameDataValue::Unit(_) => {
+                debug!("Trying to Display the GameDataValue::Unit, outputting nothing");
+                Ok(())
+            }
         }
     }
 }

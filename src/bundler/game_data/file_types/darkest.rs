@@ -6,7 +6,7 @@ use combine::{
         char::{alpha_num, char as exact_char, letter, space},
         repeat::{skip_many, skip_many1, skip_until, take_until},
     },
-    sep_by1, ParseError, ParseResult, Parser, Stream, StreamOnce,
+    sep_by1, ParseError, ParseResult, Parser, Stream, StreamOnce, sep_by,
 };
 use std::{borrow::Borrow, fmt::Display, hash::Hash, marker::PhantomData};
 
@@ -224,6 +224,14 @@ impl DarkestEntry {
             .map(|(_, s, _): (_, String, _)| format!("\"{}\"", s));
         let unquoted_string = take_until(choice((skip_many1(space()), eof())));
         choice((quoted_string, unquoted_string))
+    }
+
+    pub fn values<Input>() -> impl Parser<Input, Output = Vec<String>>
+    where
+        Input: Stream<Token = char>,
+        Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+    {
+        sep_by(Self::value(), skip_many1(space()))
     }
 
     fn parser<Input>() -> impl Parser<Input, Output = (String, Self)>

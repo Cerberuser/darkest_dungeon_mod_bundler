@@ -114,7 +114,7 @@ impl BTreePatchable for StringsTable {
                                         ItemChange::Set(GameDataValue::String(value)) => {
                                             value.clone()
                                         }
-                                        ItemChange::Removed => "<Removed>".into(),
+                                        ItemChange::Removed => "".into(),
                                         otherwise => panic!(
                                             "Unexpected value in localization table: {:?}",
                                             otherwise
