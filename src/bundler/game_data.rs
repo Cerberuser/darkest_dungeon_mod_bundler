@@ -42,6 +42,46 @@ game_data_value! {
     Unit(()),
 }
 
+#[allow(dead_code)] // since some unwrap_* methods are yet unused
+impl GameDataValue {
+    pub fn unwrap_bool(self) -> bool {
+        match self {
+            GameDataValue::Bool(b) => b,
+            otherwise => panic!("Expected bool, got {:?}", otherwise),
+        }
+    }
+    pub fn unwrap_i32(self) -> i32 {
+        match self {
+            GameDataValue::Int(i) => i,
+            otherwise => panic!("Expected integer, got {:?}", otherwise),
+        }
+    }
+    pub fn unwrap_f32(self) -> f32 {
+        match self {
+            GameDataValue::Float(f) => f,
+            otherwise => panic!("Expected float, got {:?}", otherwise),
+        }
+    }
+    pub fn unwrap_string(self) -> String {
+        match self {
+            GameDataValue::String(s) => s,
+            otherwise => panic!("Expected string, got {:?}", otherwise),
+        }
+    }
+    pub fn unwrap_list_next(self) -> Option<String> {
+        match self {
+            GameDataValue::Next(s) => s,
+            otherwise => panic!("Expected next value in string list, got {:?}", otherwise),
+        }
+    }
+    pub fn unwrap_unit(self) {
+        match self {
+            GameDataValue::Unit(()) => (),
+            otherwise => panic!("Expected unit type (a marker of key existence), got {:?}", otherwise),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct RestMap(HashMap<String, GameDataValue>);
 impl BTreeMappable for RestMap {

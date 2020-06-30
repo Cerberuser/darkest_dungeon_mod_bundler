@@ -29,6 +29,10 @@ impl DarkestEntry {
     {
         self.0.get(&key)
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 impl IntoIterator for DarkestEntry {
     type Item = (String, Vec<String>);

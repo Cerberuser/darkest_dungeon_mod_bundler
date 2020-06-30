@@ -11,6 +11,20 @@ pub enum ItemChange {
     Set(GameDataValue),
     Removed,
 }
+impl ItemChange {
+    pub fn unwrap_set(self) -> GameDataValue {
+        match self {
+            ItemChange::Set(val) => val,
+            ItemChange::Removed => panic!("Unexpected removal change"),
+        }
+    }
+    pub fn into_option(self) -> Option<GameDataValue> {
+        match self {
+            ItemChange::Set(val) => Some(val),
+            ItemChange::Removed => None,
+        }
+    }
+}
 
 pub type Patch = BTreeMap<Vec<String>, ItemChange>;
 pub type Conflicts = BTreeMap<Vec<String>, Vec<(String, ItemChange)>>;
