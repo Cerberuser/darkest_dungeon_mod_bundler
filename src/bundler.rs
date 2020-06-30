@@ -130,7 +130,7 @@ fn do_bundle(
         .iter_mut()
         .map(|(name, content)| (name.clone(), content.binary_mut()))
         .collect();
-    let binaries = resolve::resolve_binaries(on_file_read, binaries);
+    let binaries = resolve::resolve_binaries(on_file_read, binaries)?;
 
     // Next, ask to choose the basic file from a list of added ones
     let text_added = mods

@@ -1,4 +1,5 @@
 use super::{
+    error::ResolveError,
     game_data::{BTreePatchable, GameData},
     mod_content::{ModAddedTexts, ModBinaries, ModModifiedTexts},
 };
@@ -6,32 +7,65 @@ use crossbeam_channel::bounded;
 use cursive::views::{Dialog, LinearLayout, Panel, SelectView, TextView};
 use log::*;
 use std::collections::HashMap;
-use std::{fmt::Debug, path::PathBuf};
+use std::{fmt::Debug, io::Read, path::PathBuf};
 
 pub fn resolve_binaries(
     sink: &mut cursive::CbSink,
     data: HashMap<String, &mut ModBinaries>,
-) -> ModBinaries {
+) -> Result<ModBinaries, ResolveError> {
     let mut out = ModBinaries::new();
     for (path, changes) in regroup(data) {
         debug_assert!(!changes.is_empty());
+
         if changes.len() == 1 {
             out.insert(path, changes.into_iter().next().unwrap().1);
         } else {
-            // Conflict! Ask user to resolve it.
-            let choice = ask_for_resolve(
-                sink,
-                format!(
-                    "Multiple mods are using the binary file {}. Please choose one you wish to use the file from",
-                    path.to_string_lossy()
-                ),
-                changes,
-            );
-            out.insert(path, choice);
+            // Check if the changed items are equivalent.
+            let mut files = changes
+                .iter()
+                .map(|(_, path)| {
+                    let file = std::io::BufReader::new(
+                        std::fs::File::open(path).map_err(ResolveError::from_io(path))?,
+                    )
+                    .bytes();
+                    Ok((path, file))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let all_equal = loop {
+                let collected = files
+                    .iter_mut()
+                    .map(|(path, file)| {
+                        Ok(file
+                            .next()
+                            .transpose()
+                            .map_err(ResolveError::from_io(*path))?)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                if !collected.iter().all(|byte| byte == &collected[0]) {
+                    break false;
+                }
+                if collected.iter().all(Option::is_none) {
+                    break true;
+                }
+            };
+            if all_equal {
+                debug!("Multiple mods use the binary at {:?}, but these files are all equal", path);
+            } else {
+                // If we got here, there's a conflict! Ask user to resolve it.
+                let choice = ask_for_resolve(
+                    sink,
+                    format!(
+                        "Multiple mods are using the binary file {}. Please choose one you wish to use the file from",
+                        path.to_string_lossy()
+                    ),
+                    changes,
+                );
+                out.insert(path, choice);
+            }
         }
     }
 
-    out
+    Ok(out)
 }
 
 pub fn resolve_added_text(

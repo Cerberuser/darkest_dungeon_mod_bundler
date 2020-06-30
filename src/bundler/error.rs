@@ -5,6 +5,8 @@ use thiserror::Error;
 pub enum BundlerError {
     #[error("Error while extracting data")]
     Extraction(#[from] ExtractionError),
+    #[error("Error while resolving conflicts")]
+    Resolve(#[from] ResolveError),
     #[error("Error while deploying bundle")]
     Deployment(#[from] DeploymentError),
 }
@@ -32,6 +34,18 @@ impl ExtractionError {
     pub fn from_io(path: impl Into<PathBuf>) -> impl FnOnce(std::io::Error) -> Self {
         let path = path.into();
         |err| Self::Io(err, path, None)
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum ResolveError {
+    #[error("IO error encountered on path {1}")]
+    Io(#[source] std::io::Error, PathBuf),
+}
+impl ResolveError {
+    pub fn from_io(path: impl Into<PathBuf>) -> impl FnOnce(std::io::Error) -> Self {
+        let path = path.into();
+        |err| Self::Io(err, path)
     }
 }
 
