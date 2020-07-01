@@ -11,14 +11,13 @@ use combine::EasyParser;
 use crossbeam_channel::{bounded, Sender};
 use cursive::{
     traits::{Nameable, Resizable},
-    views::{Button, Dialog, EditView, LinearLayout, Panel, TextArea, TextView},
+    views::{Button, Dialog, EditView, LinearLayout, Panel, ScrollView, TextArea, TextView},
 };
 use log::debug;
 use std::{
     collections::{BTreeMap, HashMap},
     convert::TryInto,
     num::ParseFloatError,
-    ops::Deref,
 };
 
 fn parse_percent(value: &str) -> Result<f32, ParseFloatError> {
@@ -373,21 +372,6 @@ fn resolve_skill_effects(
 
 impl BTreePatchable for HeroInfo {
     fn apply_patch(&mut self, patch: Patch) -> Result<(), ()> {
-        // First, we should collect all skill effects used in patch.
-        for ((skill, level), ref mut skill_data) in self.skills.0.iter_mut() {
-            patch_skill_effects(
-                &mut skill_data.effects,
-                &patch,
-                &["skills".into(), format!("{}/{}", skill, level)],
-            );
-        }
-        patch_skill_effects(
-            &mut self.riposte_skill.effects,
-            &patch,
-            &["riposte_skill".into()],
-        );
-
-        // Now, all other parts are simpler... we'll just patch it key-by-key.
         for (mut path, change) in patch {
             match path.get(0).unwrap().as_str() {
                 "resistances" => self.resistances.apply(path, change),
@@ -438,67 +422,60 @@ impl BTreePatchable for HeroInfo {
                     .push((mod_name.clone(), item));
             }
         }
-
-        let mut skill_effects: HashMap<String, HashMap<String, Patch>> = HashMap::new();
-        let mut riposte_effects: HashMap<String, Patch> = HashMap::new();
-        for (path, changes) in changes {
-            debug_assert!(!changes.is_empty());
-            if path.get(0).map(String::as_str) == Some("skills")
-                && path.get(2).map(String::as_str) == Some("effects")
-            {
-                let cur_map = skill_effects
-                    .entry(path.get(1).unwrap().clone())
-                    .or_default();
-                for (mod_name, change) in changes {
-                    cur_map
-                        .entry(mod_name)
-                        .or_default()
-                        .insert(path.clone(), change);
-                }
-            } else if path.get(0).map(String::as_str) == Some("riposte_skill")
-                && path.get(1).map(String::as_str) == Some("effects")
-            {
-                for (mod_name, change) in changes {
-                    riposte_effects
-                        .entry(mod_name)
-                        .or_default()
-                        .insert(path.clone(), change);
-                }
-            } else if changes.len() == 1 {
-                merged.insert(path, changes.into_iter().next().unwrap().1);
-            } else {
-                for change in changes {
-                    unmerged.entry(path.clone()).or_default().push(change);
-                }
+        // Skills are treated separately, for the reason that we want to
+        // resolve the changes to all the levels at once.
+        // So, if there's any conflict on one level - other levels also go to "unmerged",
+        // even if on them there is only one patched entry.
+        for skill in self.skills.0.keys() {
+            let skill_changes: Vec<_> = changes
+                .iter()
+                .filter(|(path, _)| path[0] == "skills" && &path[1] == skill)
+                .map(|(path, changes)| (path.clone(), changes.clone()))
+                .collect();
+            let mut skill_map: HashMap<_, HashMap<_, _>> = HashMap::new();
+            for (path, changes) in skill_changes {
+                let level = path[2].clone();
+                let path = path.iter().skip(3).cloned().collect::<Vec<_>>();
+                skill_map.entry(path).or_default().insert(level, changes);
             }
-        }
-        for (skill, effects) in skill_effects {
-            if effects.is_empty() {
-                debug!("Effects for skill {} seem to be non-patched", skill);
-            } else if effects.len() == 1 {
-                merged.extend(effects.into_iter().next().unwrap().1);
-            } else {
-                for (mod_name, patch) in effects {
-                    for (path, change) in patch {
-                        unmerged
-                            .entry(path)
-                            .or_default()
-                            .push((mod_name.clone(), change));
+            for (path, level_changes) in skill_map {
+                if level_changes.values().all(|v| v.len() <= 1) {
+                    // No conflicts for all levels - merging
+                    for (level, level_change) in level_changes {
+                        let full_path: Vec<_> = vec!["skills".into(), skill.clone(), level]
+                            .into_iter()
+                            .chain(path.clone())
+                            .collect();
+                        if let Some(change) = changes.remove(&full_path) {
+                            debug_assert!(change.len() == 1);
+                            debug_assert_eq!(level_change, change);
+                            merged.insert(full_path, change.into_iter().next().unwrap().1);
+                        }
+                    }
+                } else {
+                    // Conflict on some level - dump all to unmerged
+                    for (level, level_change) in level_changes {
+                        let full_path: Vec<_> = vec!["skills".into(), skill.clone(), level]
+                            .into_iter()
+                            .chain(path.clone())
+                            .collect();
+                        let changes = changes.remove(&full_path).unwrap();
+                        debug_assert_eq!(level_change, changes);
+                        for change in changes {
+                            unmerged.entry(full_path.clone()).or_default().push(change)
+                        }
                     }
                 }
             }
         }
-        if riposte_effects.is_empty() {
-            debug!("Riposte skill seems to be non-patched");
-        } else if riposte_effects.len() == 1 {
-            merged.extend(riposte_effects.into_iter().next().unwrap().1);
-        } else {
-            for (mod_name, patch) in riposte_effects {
-                for (path, change) in patch {
-                    unmerged
-                        .entry(path)
-                        .or_default()
-                        .push((mod_name.clone(), change));
+
+        for (path, changes) in changes {
+            debug_assert!(!changes.is_empty());
+            if changes.len() == 1 {
+                merged.insert(path, changes.into_iter().next().unwrap().1);
+            } else {
+                for change in changes {
+                    unmerged.entry(path.clone()).or_default().push(change)
                 }
             }
         }
@@ -506,58 +483,212 @@ impl BTreePatchable for HeroInfo {
         (merged, unmerged)
     }
 
-    fn ask_for_resolve(&self, sink: &mut cursive::CbSink, conflicts: Conflicts) -> Patch {
+    fn ask_for_resolve(&self, sink: &mut cursive::CbSink, mut conflicts: Conflicts) -> Patch {
         let mut out = Patch::new();
 
-        // First, try to merge all conflicts related to skill effects.
-        for ((skill, level), skill_data) in self.skills.0.iter() {
-            let skill_name = format!("{}/{}", skill, level);
-            let prefix = &["skills".into(), skill_name.clone(), "effects".into()] as &[String];
-            let effects_patch = resolve_skill_effects(
-                skill_data,
-                skill_name.clone(),
-                &conflicts,
-                prefix,
-                sink,
-                self.id.clone(),
-            );
-            let skill_patch = {
-                let mut patch = Patch::new();
-                patch.extend_prefixed("effects", effects_patch);
-                patch
-            };
-            let skill_patch = {
-                let mut patch = Patch::new();
-                patch.extend_prefixed(&skill_name, skill_patch);
-                patch
-            };
-            out.extend_prefixed("skills", skill_patch);
+        // First, we want to separately merge everything connected to ordinary (non-riposte, non-move) skills.
+        // The reason is simple - to let one merge all levels at once.
+        let conflict_paths: Vec<_> = conflicts.keys().cloned().collect();
+        for (skill, skill_data) in &self.skills.0 {
+            let mut skill_changes: BTreeMap<_, BTreeMap<_, BTreeMap<_, _>>> = BTreeMap::new();
+            for path in &conflict_paths {
+                if path[0] == "skills" && &path[1] == skill {
+                    // Drop the path from conflicts map, so that we don't have to filter it out later.
+                    let change = conflicts
+                        .remove(path)
+                        .expect("The conflict value was used twice; this is a bug");
+                    debug!("Got the change: path = {:?}, change = {:?}", path, change);
+                    let level: i32 = path[2].parse().unwrap();
+                    assert!(level >= 0 && level < 5);
+                    let path = path.iter().skip(3).cloned().collect::<Vec<_>>();
+                    for (mod_name, change) in change {
+                        skill_changes
+                            .entry(path.clone())
+                            .or_default()
+                            .entry(mod_name)
+                            .or_default()
+                            .insert(level, change);
+                    }
+                }
+            }
+            for (path, change) in skill_changes {
+                // TODO: sanity check, for the case if all patches are in fact identical.
+
+                // Here, we'll resolve all changes to the particular skill element.
+                let entries = change
+                    .into_iter()
+                    .map(|(mod_name, change)| {
+                        let change_text = change
+                            .into_iter()
+                            .map(|(level, change)| {
+                                let mut value = change
+                                    .into_option()
+                                    .map(GameDataValue::unwrap_string)
+                                    .unwrap_or_else(|| "<REMOVED>".into());
+                                // Special case: effects are stored in map and patch at separate lines, but in UI they are on one line.
+                                if path[0].as_str() == "effects" {
+                                    value = value.replace('\n', " ");
+                                }
+                                (level, value)
+                            })
+                            .collect::<HashMap<_, _>>();
+                        (mod_name, change_text)
+                    })
+                    .collect::<BTreeMap<_, _>>();
+                let orig_text = skill_data
+                    .iter()
+                    .map(|(&level, skill)| {
+                        let value = skill.get(&path);
+                        (level, value)
+                    })
+                    .collect::<HashMap<_, _>>();
+
+                let lines_output = |data: HashMap<i32, String>| {
+                    let mut output = vec![];
+                    for index in 0..5 {
+                        let line = data
+                            .get(&index)
+                            .cloned()
+                            .unwrap_or_else(|| "<UNCHANGED>".into());
+                        output.push(format!("Level {}, value: {}", index, line));
+                    }
+                    output.join("\n")
+                };
+                let original_data: Vec<_> = (0..5)
+                    .map(|index| skill_data.get(&index).map(|skill| skill.get(&path)))
+                    .collect();
+                let lines_input = move |data: HashMap<i32, String>| {
+                    let mut output = vec![];
+                    for index in 0..5 {
+                        let line = data
+                            .get(&index)
+                            .cloned()
+                            .or_else(|| original_data.clone().remove(index as usize))
+                            .unwrap_or_default();
+                        output.push(line);
+                    }
+                    output.join("\n")
+                };
+                let lines_input_output: Vec<_> =
+                    std::iter::once(("Original values".into(), orig_text))
+                        .chain(entries)
+                        .map(|(name, lines)| {
+                            (name, lines_input(lines.clone()), lines_output(lines))
+                        })
+                        .collect();
+
+                let (sender, receiver) = bounded(0);
+                let self_id = self.id.clone();
+                let path_str = format!(
+                    "skills / {} / <levels> / {}",
+                    skill,
+                    path.clone().join(" / ")
+                );
+                crate::run_update(sink, move |cursive| {
+                    let mut layout = LinearLayout::vertical();
+                    lines_input_output
+                        .into_iter()
+                        .for_each(|(name, lines_input, lines_output)| {
+                            layout.add_child(
+                                LinearLayout::horizontal()
+                                    .child(
+                                        Panel::new(TextView::new(lines_output).full_width())
+                                            .title(name),
+                                    )
+                                    .child(Button::new("Move to input", move |cursive| {
+                                        let lines_input = lines_input.clone();
+                                        cursive.call_on_name(
+                                            "Line resolve edit",
+                                            |edit: &mut TextArea| edit.set_content(lines_input),
+                                        );
+                                    })),
+                            )
+                        });
+                    let resolve_sender = sender.clone();
+                    crate::push_screen(
+                        cursive,
+                        Dialog::around(
+                            LinearLayout::vertical()
+                                .child(ScrollView::new(layout))
+                                .child(TextArea::new().with_name("Line resolve edit").full_width()),
+                        )
+                        .title(format!(
+                            "Resolving entry: hero ID = {}, path = {}",
+                            self_id, path_str
+                        ))
+                        .button("Resolve", move |cursive| {
+                            let value = cursive
+                                .call_on_name("Line resolve edit", |edit: &mut TextArea| {
+                                    edit.get_content().split('\n').map(String::from).collect()
+                                })
+                                .unwrap();
+                            cursive.pop_layer();
+                            resolve_sender.send(Some(value)).unwrap();
+                        })
+                        .button("Remove", move |cursive| {
+                            cursive.pop_layer();
+                            sender.send(None).unwrap();
+                        })
+                        .h_align(cursive::align::HAlign::Center),
+                    );
+                });
+                let choice: Option<Vec<String>> = receiver
+                    .recv()
+                    .expect("Sender was dropped without sending anything");
+                match choice {
+                    Some(items) => {
+                        // Effects and non-effect entries are treated a little differently.
+                        match path[0].as_str() {
+                            "effects" => {
+                                for (level, item) in items.into_iter().enumerate() {
+                                    let full_path =
+                                        vec!["skills".into(), skill.clone(), level.to_string()]
+                                            .into_iter()
+                                            .chain(path.clone())
+                                            .collect();
+                                    let (effects, rest) = DarkestEntry::values()
+                                        .easy_parse(item.as_str())
+                                        .expect("Wrong format for effects");
+                                    assert!(
+                                        rest.trim().is_empty(),
+                                        "Something was left unparsed: {:?}",
+                                        rest
+                                    );
+                                    out.insert(
+                                        full_path,
+                                        ItemChange::Set(effects.join("\n").into()),
+                                    );
+                                }
+                            }
+                            "other" => {
+                                for (level, item) in items.into_iter().enumerate() {
+                                    let full_path =
+                                        vec!["skills".into(), skill.clone(), level.to_string()]
+                                            .into_iter()
+                                            .chain(path.clone())
+                                            .collect();
+                                    out.insert(full_path, ItemChange::Set(item.into()));
+                                }
+                            }
+                            _ => panic!("Unexpected path in hero skills: {:?}", path),
+                        }
+                    }
+                    None => {
+                        // There might be less then five entries, in case of override.
+                        for level in skill_data.keys() {
+                            let full_path = vec!["skills".into(), skill.clone(), level.to_string()]
+                                .into_iter()
+                                .chain(path.clone())
+                                .collect();
+                            out.insert(full_path, ItemChange::Removed);
+                        }
+                    }
+                }
+            }
         }
-        // Not to forget about riposte!
-        let prefix = &["riposte_skill".into(), "effects".into()] as &[String];
-        let effects_patch = resolve_skill_effects(
-            &self.riposte_skill,
-            "Riposte".into(),
-            &conflicts,
-            prefix,
-            sink,
-            self.id.clone(),
-        );
-        let skill_patch = {
-            let mut patch = Patch::new();
-            patch.extend_prefixed("effects", effects_patch);
-            patch
-        };
-        out.extend_prefixed("riposte_skill", skill_patch);
-        // Now that's easier - we can simply iterate over changes one-by-one.
+
+        // Now, we can simply iterate over changes one-by-one.
         for (path, mut changes) in conflicts {
-            // Just don't forget that the effects were already dealt with.
-            if path[0].as_str() == "skills" && path[2].as_str() == "effects" {
-                continue;
-            }
-            if path[0].as_str() == "riposte_skill" && path[1].as_str() == "effects" {
-                continue;
-            }
             // Sort the changes by mod name, just for convenience.
             changes.sort_by_key(|pair| pair.0.clone());
             // First, we can check if the resulting chains are really different (it's hard to do before).
@@ -1210,39 +1341,51 @@ impl BTreeMappable for Armour {
 }
 
 #[derive(Clone, Debug)]
-struct Skills(BTreeMap<(String, i32), Skill>);
+struct Skills(BTreeMap<String, BTreeMap<i32, Skill>>);
 
 impl Skills {
     fn from_entries(input: Vec<DarkestEntry>) -> Self {
-        let mut tmp: HashMap<(String, i32), Vec<DarkestEntry>> = HashMap::new();
+        let mut tmp: HashMap<String, HashMap<i32, Vec<DarkestEntry>>> = HashMap::new();
         for entry in input {
             let id = entry.get("id").expect("Skill ID field not found")[0].clone();
             let level = entry.get("level").expect("Skill LEVEL field not found")[0]
                 .parse()
                 .expect("Skill LEVEL field is not a number");
-            tmp.entry((id, level)).or_default().push(entry);
+            tmp.entry(id)
+                .or_default()
+                .entry(level)
+                .or_default()
+                .push(entry);
         }
         Self(
             tmp.into_iter()
-                .map(|(key, value)| (key, Skill::from_entries(value)))
+                .map(|(key, value)| {
+                    (
+                        key,
+                        value
+                            .into_iter()
+                            .map(|(key, value)| (key, Skill::from_entries(value)))
+                            .collect(),
+                    )
+                })
                 .collect(),
         )
     }
     fn apply(&mut self, path: Vec<String>, change: ItemChange) {
         debug_assert_eq!(path[0], "skills");
-        let (name, level) = {
-            let mut iter = path[1].split('/');
-            (
-                iter.next().unwrap(),
-                iter.next()
-                    .unwrap_or_else(|| panic!("Unexpected path in hero data: {:?}, wrong skill ID, expected format <NAME>_<LEVEL>", path))
-                    .parse()
-                    .unwrap_or_else(|_| panic!("Unexpected path in hero data: {:?}, wrong skill ID, expected format <NAME>_<LEVEL>", path))
+        let name = &path[1];
+        let level = path[2].parse().unwrap_or_else(|_| {
+            panic!(
+                "Unexpected path in hero data: {:?}, wrong skill level",
+                path
             )
-        };
+        });
+        assert!(level >= 0 && level < 5);
         self.0
-            .get_mut(&(name.into(), level))
+            .get_mut(name)
             .unwrap_or_else(|| panic!("Unexpected path in hero data: {:?}, skill not found", path))
+            .entry(level)
+            .or_default()
             .apply(path, change);
     }
 }
@@ -1250,15 +1393,19 @@ impl Skills {
 impl BTreeMappable for Skills {
     fn to_map(&self) -> DataMap {
         let mut out = DataMap::new();
-        for ((name, level), skill) in &self.0 {
-            let map = skill.to_map();
-            out.extend_prefixed(&format!("{}/{}", name, level), map);
+        for (name, skill) in &self.0 {
+            let mut skill_map = DataMap::new();
+            for (level, skill) in skill {
+                let map = skill.to_map();
+                skill_map.extend_prefixed(&level.to_string(), map);
+            }
+            out.extend_prefixed(&name, skill_map);
         }
         out
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 struct Skill {
     effects: Vec<String>,
     other: HashMap<String, String>,
@@ -1277,26 +1424,36 @@ impl Skill {
             .collect();
         Self { effects, other }
     }
+    fn get(&self, subpath: &[String]) -> String {
+        match subpath[0].as_str() {
+            "effects" => self.effects.clone().join(" "),
+            "other" => self.other.get(&subpath[1]).cloned().unwrap_or_default(),
+            _ => panic!("Unexpected path in skill info: {:?}", subpath),
+        }
+    }
     fn apply(&mut self, mut path: Vec<String>, change: ItemChange) {
         debug!("Patching skill: path = {:?}, change = {:?}", path, change);
-        let key = match path[0].as_str() {
+        match path[0].clone().as_str() {
             "skills" => {
-                assert!(path.len() == 3);
-                path.pop().unwrap()
+                // Drop skill and its level from the path.
+                let _ = path.drain(1..=2);
             }
-            "riposte_skill" => {
-                assert!(path.len() == 2);
-                path.pop().unwrap()
-            }
+            "riposte_skill" => (),
             _ => panic!("Unexpected path in hero info: {:?}", path),
         };
-        if path.pop() == Some("effects".to_string()) {
-            // they should be patched in other way
-            return;
-        }
-        match change.into_option().map(GameDataValue::unwrap_string) {
-            Some(s) => self.other.insert(key, s),
-            None => self.other.remove(&key),
+        match path[1].as_str() {
+            "effects" => {
+                assert!(path.len() == 2);
+                self.effects = change.into_option().unwrap().unwrap_string().split('\n').map(String::from).collect();
+            }
+            "other" => {
+                assert!(path.len() == 3);
+                match change.into_option().map(GameDataValue::unwrap_string) {
+                    Some(s) => self.other.insert(path.remove(2), s),
+                    None => self.other.remove(&path.remove(2)),
+                };
+            }
+            _ => panic!("Unexpected path in hero info: {:?}", path),
         };
     }
 }
@@ -1304,8 +1461,9 @@ impl Skill {
 impl BTreeMappable for Skill {
     fn to_map(&self) -> DataMap {
         let mut out = DataMap::new();
-        out.extend_prefixed("effects", self.effects.to_map());
-        out.extend(
+        out.insert(vec!["effects".into()], self.effects.join("\n").into());
+        out.extend_prefixed(
+            "other",
             self.other
                 .clone()
                 .into_iter()
@@ -1371,7 +1529,7 @@ impl DeathsDoor {
         }
     }
     fn apply(&mut self, path: Vec<String>, change: ItemChange) {
-        debug_assert!(path.len() == 3);
+        assert!(path.len() == 3);
         debug_assert_eq!(path[0], "deaths_door");
         let place = match path[1].as_str() {
             "buffs" => &mut self.buffs,
