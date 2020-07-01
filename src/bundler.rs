@@ -312,6 +312,13 @@ fn load_dlcs(
                     .unwrap();
             });
             data.extend(game_data::load_data(on_load.clone(), &path)?);
+            // TODO - should I do this for main data and/or mods?
+            let features_path = path.join("features");
+            if features_path.exists() {
+                info!("DLC on path {:?} contain some features, loading them", path);
+                // <HACK> Since the logic is nearly identical.
+                load_dlcs(&features_path, data, sink)?;
+            }
         } else {
             warn!("Found non-directory item in DLC folder: {:?}", path);
         }
