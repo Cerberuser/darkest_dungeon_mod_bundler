@@ -66,6 +66,8 @@ pub fn deploy(
         info!("Writing mod file to relative path {:?}", path);
         super::set_file_updated(sink, "Deploying", path.to_string_lossy());
         let target = mod_path.join(path);
+        let dir = target.parent().unwrap();
+        std::fs::create_dir_all(dir).map_err(DeploymentError::from_io(&dir))?;
         match item {
             GameDataItem::Binary(source) => {
                 info!("Copying binary file from {:?}", source);
