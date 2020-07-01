@@ -6,7 +6,6 @@ use super::{
     GameData, GameDataItem, GameDataValue, StructuredItem,
 };
 use crate::bundler::{diff::Conflicts, loader::utils::rel_path};
-use log::*;
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -41,7 +40,7 @@ pub trait BTreeSetable: BTreeLinkedMappable {
         self.list()
             .iter()
             .cloned()
-            .map(|s| (vec![s], ().into()))
+            .map(|s| (vec![s.clone()], s.into()))
             .collect()
     }
 }
@@ -117,10 +116,8 @@ macro_rules! load {
             .map_err(crate::io_to_extraction!(root_path))?
             .into_iter()
             .map(move |full_path| {
-                debug!("Starting loading from path {:?}", full_path);
                 let path = rel_path(root_path, &full_path)
                     .map_err(crate::io_to_extraction!(&full_path))?;
-                debug!("Calculated relative path: {:?}", path);
                 $on_load(path.to_string_lossy().to_string());
                 let data =
                     Self::load_raw(&full_path).map_err(crate::io_to_extraction!(&full_path))?;

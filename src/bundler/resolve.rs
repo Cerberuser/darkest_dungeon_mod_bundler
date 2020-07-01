@@ -49,7 +49,7 @@ pub fn resolve_binaries(
                 }
             };
             if all_equal {
-                debug!("Multiple mods use the binary at {:?}, but these files are all equal", path);
+                debug!("[resolve]: Multiple mods use the binary at {:?}, but these files are all equal", path);
             } else {
                 // If we got here, there's a conflict! Ask user to resolve it.
                 let choice = ask_for_resolve(

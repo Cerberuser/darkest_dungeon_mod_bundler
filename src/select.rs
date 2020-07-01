@@ -24,10 +24,6 @@ impl<V: View> ViewWrapper for Half<V> {
         Some(f(&mut self.0))
     }
     fn wrap_required_size(&mut self, req: Vec2) -> Vec2 {
-        debug!(
-            "Half-width view asked for required size with constraints {:?}",
-            req
-        );
         (req.x / 2, req.y).into()
     }
 }

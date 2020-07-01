@@ -105,7 +105,7 @@ impl BTreePatchable for StringsTable {
                                         "Unexpected value in localization table: {:?}",
                                         otherwise
                                     ),
-                                })
+                                }.full_width())
                                 .title(name),
                             )
                             .child(Button::new("Move to input", move |cursive| {

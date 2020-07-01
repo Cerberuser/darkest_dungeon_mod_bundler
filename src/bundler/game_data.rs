@@ -40,7 +40,6 @@ game_data_value! {
     Float(f32),
     String(String),
     Next(Option<String>),
-    Unit(()),
 }
 
 #[allow(dead_code)] // since some unwrap_* methods are yet unused
@@ -75,12 +74,6 @@ impl GameDataValue {
             otherwise => panic!("Expected next value in string list, got {:?}", otherwise),
         }
     }
-    pub fn unwrap_unit(self) {
-        match self {
-            GameDataValue::Unit(()) => (),
-            otherwise => panic!("Expected unit type (a marker of key existence), got {:?}", otherwise),
-        }
-    }
     pub fn parse_replace(&mut self, input: &str) -> Result<(), ()> {
         match self {
             GameDataValue::Bool(b) => *b = input.parse().map_err(|_| {})?,
@@ -102,10 +95,6 @@ impl Display for GameDataValue {
             GameDataValue::Next(Some(s)) => s.fmt(f),
             GameDataValue::Next(None) => {
                 debug!("Trying to Display the GameDataValue::Next(None), outputting nothing");
-                Ok(())
-            }
-            GameDataValue::Unit(_) => {
-                debug!("Trying to Display the GameDataValue::Unit, outputting nothing");
                 Ok(())
             }
         }
