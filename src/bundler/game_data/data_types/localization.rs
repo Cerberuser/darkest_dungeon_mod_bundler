@@ -1,7 +1,7 @@
 use super::super::{BTreeMappable, BTreePatchable, Loadable};
 use crate::bundler::{
     diff::{Conflicts, DataMap, ItemChange, Patch},
-    game_data::{BTreeMapExt, GameDataValue},
+    game_data::{BTreeMapExt, DeployableStructured, GameDataValue},
     loader::utils::{collect_paths, has_ext},
     ModFileChange,
 };
@@ -12,7 +12,11 @@ use cursive::{
 };
 use log::*;
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, collections::HashMap, io::Read};
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    io::{Read, Write},
+};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct StringsTable(HashMap<String, LanguageTable>);
@@ -96,16 +100,19 @@ impl BTreePatchable for StringsTable {
                     layout.add_child(
                         LinearLayout::horizontal()
                             .child(
-                                Panel::new(match &line {
-                                    ItemChange::Set(GameDataValue::String(value)) => {
-                                        TextView::new(value.clone())
+                                Panel::new(
+                                    match &line {
+                                        ItemChange::Set(GameDataValue::String(value)) => {
+                                            TextView::new(value.clone())
+                                        }
+                                        ItemChange::Removed => TextView::new("<Removed>"),
+                                        otherwise => panic!(
+                                            "Unexpected value in localization table: {:?}",
+                                            otherwise
+                                        ),
                                     }
-                                    ItemChange::Removed => TextView::new("<Removed>"),
-                                    otherwise => panic!(
-                                        "Unexpected value in localization table: {:?}",
-                                        otherwise
-                                    ),
-                                }.full_width())
+                                    .full_width(),
+                                )
                                 .title(name),
                             )
                             .child(Button::new("Move to input", move |cursive| {
@@ -246,6 +253,29 @@ impl Loadable for StringsTable {
         }
 
         Ok(Self(out))
+    }
+}
+
+impl DeployableStructured for StringsTable {
+    fn deploy(&self, path: &std::path::Path) -> std::io::Result<()> {
+        let mut output = std::fs::File::create(path)?;
+        writeln!(output, r#"<?xml version="1.0" encoding="UTF-8"?>"#)?;
+        writeln!(output, "<root>")?;
+        for (language, table) in &self.0 {
+            writeln!(output, "\t<language id=\"{}\">", language)?;
+            for (id, text) in &table.0 {
+                let text = if text.contains(&['<', '>', '&'][..]) {
+                    // Let's hope that there would never be "]]>" in valid strings...
+                    format!("<![CDATA[{}]]>", text)
+                } else {
+                    text.clone()
+                };
+                writeln!(output, "\t\t<entry id=\"{}\">{}</entry>", id, text)?;
+            }
+            writeln!(output, "\t</language>")?;
+        }
+        writeln!(output, "</root>")?;
+        Ok(())
     }
 }
 

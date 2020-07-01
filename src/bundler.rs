@@ -219,7 +219,7 @@ fn load_mod(
     // <HACK> This looks like a bad practice, but I've run into mod which does exactly that
     let dlc_path = the_mod.path.join("dlc");
     if dlc_path.exists() {
-        warn!("File contains DLC-mapped data; loading");
+        warn!("Mod contains DLC-mapped data; loading it");
         load_dlcs(&dlc_path, &mut content, on_file_read)?;
     }
     let content = content;

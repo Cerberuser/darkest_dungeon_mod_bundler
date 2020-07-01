@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf}, fmt::Display,
+    fmt::Display,
+    path::{Path, PathBuf},
 };
 
 pub mod data_types;
@@ -11,7 +12,7 @@ mod traits;
 pub use traits::*;
 
 use super::{
-    diff::{DataMap, Patch, Conflicts},
+    diff::{Conflicts, DataMap, Patch},
     ExtractionError, ModFileChange,
 };
 use log::debug;
@@ -143,6 +144,13 @@ macro_rules! structured {
                 }
             }
         }
+        impl DeployableStructured for StructuredItem {
+            fn deploy(&self, path: &Path) -> std::io::Result<()>  {
+                match self {
+                    $(Self::$ty(value) => value.deploy(path)),+
+                }
+            }
+        }
         $(
             impl From<data_types::$ty> for StructuredItem {
                 fn from(item: data_types::$ty) -> Self {
@@ -168,7 +176,9 @@ pub enum GameDataItem {
 impl BTreeMappable for GameDataItem {
     fn to_map(&self) -> DataMap {
         match self {
-            GameDataItem::Binary(_) => panic!("Attempt to make a map from the binary item, probably a bug"),
+            GameDataItem::Binary(_) => {
+                panic!("Attempt to make a map from the binary item, probably a bug")
+            }
             GameDataItem::Structured(item) => item.to_map(),
         }
     }

@@ -151,3 +151,7 @@ pub trait LoadableStructured: Loadable + Into<StructuredItem> {
     }
 }
 impl<T: Loadable + Into<StructuredItem>> LoadableStructured for T {}
+
+pub trait DeployableStructured {
+    fn deploy(&self, path: &Path) -> std::io::Result<()>;
+}

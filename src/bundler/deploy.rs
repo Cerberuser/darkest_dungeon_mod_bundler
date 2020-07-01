@@ -1,4 +1,7 @@
-use super::{error::DeploymentError, game_data::GameData};
+use super::{
+    error::DeploymentError,
+    game_data::{DeployableStructured, GameData, GameDataItem},
+};
 use crossbeam_channel::{bounded, Sender};
 use cursive::{
     traits::{Nameable, Resizable},
@@ -62,32 +65,19 @@ pub fn deploy(
     for (path, item) in bundle {
         info!("Writing mod file to relative path {:?}", path);
         super::set_file_updated(sink, "Deploying", path.to_string_lossy());
+        let target = mod_path.join(path);
         match item {
-            super::game_data::GameDataItem::Binary(_) => todo!(),
-            super::game_data::GameDataItem::Structured(_) => todo!(),
+            GameDataItem::Binary(source) => {
+                info!("Copying binary file from {:?}", source);
+                let mut source =
+                    std::fs::File::open(&source).map_err(DeploymentError::from_io(&source))?;
+                let mut target =
+                    std::fs::File::create(&target).map_err(DeploymentError::from_io(&target))?;
+                std::io::copy(&mut source, &mut target).map(|_| {})
+            }
+            GameDataItem::Structured(item) => item.deploy(&target),
         }
-        // let (source, content) = item.into_parts();
-        // let target = mod_path.join(path);
-        // let dir = target.parent().unwrap();
-        // std::fs::create_dir_all(dir).map_err(DeploymentError::from_io(&dir))?;
-        // match content {
-        //     DataNodeContent::Binary => {
-        //         info!("Copying binary file from {:?}", source);
-        //         let mut source =
-        //             std::fs::File::open(&source).map_err(DeploymentError::from_io(&source))?;
-        //         let mut target =
-        //             std::fs::File::create(&target).map_err(DeploymentError::from_io(&target))?;
-        //         std::io::copy(&mut source, &mut target).map(|_| {})
-        //     }
-        //     DataNodeContent::Text(text) => {
-        //         info!(
-        //             "Writing text file, first 100 chars = \"{}\"",
-        //             text.chars().take(100).collect::<String>()
-        //         );
-        //         std::fs::write(&target, text)
-        //     }
-        // }
-        // .map_err(DeploymentError::from_io(&target))?;
+        .map_err(DeploymentError::from_io(&target))?;
     }
     Ok(())
 }
@@ -138,6 +128,7 @@ fn ask_for_props(sink: &mut cursive::CbSink) -> (String, String) {
                 let dir = cursive
                     .call_on_name("Mod directory", |view: &mut EditView| view.get_content())
                     .unwrap();
+                cursive.pop_layer();
                 sender.send((name.to_string(), dir.to_string())).unwrap();
             }),
         )

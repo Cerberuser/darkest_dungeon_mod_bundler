@@ -6,7 +6,7 @@ use combine::{
         char::{alpha_num, char as exact_char, letter, space},
         repeat::{skip_many, skip_many1, skip_until, take_until},
     },
-    sep_by1, ParseError, ParseResult, Parser, Stream, StreamOnce, sep_by,
+    sep_by, sep_by1, ParseError, ParseResult, Parser, Stream, StreamOnce,
 };
 use std::{borrow::Borrow, fmt::Display, hash::Hash, marker::PhantomData};
 
@@ -134,7 +134,9 @@ where
             parse_and_do!(input with eof() => break);
             // If we can parse the next entry - we're also done.
             // TODO: find more idiomatic way!
-            if not_followed_by(DarkestEntry::key().map(|_| "next")).parse(&mut *input).is_err()
+            if not_followed_by(DarkestEntry::key().map(|_| "next"))
+                .parse(&mut *input)
+                .is_err()
             {
                 break;
             }

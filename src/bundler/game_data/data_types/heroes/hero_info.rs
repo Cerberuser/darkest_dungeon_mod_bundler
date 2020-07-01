@@ -2,7 +2,8 @@ use crate::bundler::{
     diff::{Conflicts, DataMap, ItemChange, Patch},
     game_data::{
         file_types::{darkest_parser, DarkestEntry},
-        BTreeMapExt, BTreeMappable, BTreePatchable, BTreeSetable, GameDataValue, Loadable,
+        BTreeMapExt, BTreeMappable, BTreePatchable, BTreeSetable, DeployableStructured,
+        GameDataValue, Loadable,
     },
     loader::utils::{collect_paths, ends_with},
     ModFileChange,
@@ -17,6 +18,9 @@ use log::debug;
 use std::{
     collections::{BTreeMap, HashMap},
     convert::TryInto,
+    fmt::Display,
+    fs::File,
+    io::{self, Write},
     num::ParseFloatError,
 };
 
@@ -26,6 +30,11 @@ fn parse_percent(value: &str) -> Result<f32, ParseFloatError> {
     } else {
         value.parse()
     }
+}
+
+fn percent_to_string(value: f32) -> String {
+    // Assume that the two decimal numbers are enough.
+    format!("{:.2}%", value * 100.0)
 }
 
 #[derive(Clone, Debug)]
@@ -613,7 +622,7 @@ impl BTreePatchable for HeroOverride {
 }
 
 impl Loadable for HeroInfo {
-    fn prepare_list(root_path: &std::path::Path) -> std::io::Result<Vec<std::path::PathBuf>> {
+    fn prepare_list(root_path: &std::path::Path) -> io::Result<Vec<std::path::PathBuf>> {
         let path = root_path.join("heroes");
         if path.exists() {
             collect_paths(&path, |path| Ok(ends_with(path, ".info.darkest")))
@@ -621,7 +630,7 @@ impl Loadable for HeroInfo {
             Ok(vec![])
         }
     }
-    fn load_raw(path: &std::path::Path) -> std::io::Result<Self> {
+    fn load_raw(path: &std::path::Path) -> io::Result<Self> {
         let id = path
             .file_name()
             .unwrap()
@@ -701,7 +710,7 @@ impl Loadable for HeroInfo {
 }
 
 impl Loadable for HeroOverride {
-    fn prepare_list(root_path: &std::path::Path) -> std::io::Result<Vec<std::path::PathBuf>> {
+    fn prepare_list(root_path: &std::path::Path) -> io::Result<Vec<std::path::PathBuf>> {
         let path = root_path.join("heroes");
         if path.exists() {
             collect_paths(&path, |path| Ok(ends_with(path, ".override.darkest")))
@@ -709,7 +718,7 @@ impl Loadable for HeroOverride {
             Ok(vec![])
         }
     }
-    fn load_raw(path: &std::path::Path) -> std::io::Result<Self> {
+    fn load_raw(path: &std::path::Path) -> io::Result<Self> {
         let id = path
             .file_name()
             .unwrap()
@@ -799,6 +808,128 @@ fn opt_vec<T>(v: Vec<T>) -> Option<Vec<T>> {
     }
 }
 
+impl DeployableStructured for HeroInfo {
+    fn deploy(&self, path: &std::path::Path) -> io::Result<()> {
+        let mut output = File::create(path)?;
+        writeln!(output, "// Deployed by Darkest Dungeon Mod Bundler\n\n")?;
+
+        self.resistances.deploy(&mut output)?;
+        self.weapons.deploy(&mut output, &self.id)?;
+        self.armours.deploy(&mut output, &self.id)?;
+        self.skills.deploy(&mut output)?;
+        self.riposte_skill.deploy(&mut output)?;
+        self.move_skill.deploy(&mut output)?;
+        if !self.tags.is_empty() {
+            writeln!(output, "// Hero tags")?;
+            for tag in &self.tags {
+                writeln!(output, "tag: .id {}", tag)?;
+            }
+            writeln!(output)?;
+        }
+        if !self.extra_stack_limit.is_empty() {
+            writeln!(output, "// Extra stack limits provided by hero")?;
+            for extra_limit in &self.extra_stack_limit {
+                writeln!(output, "extra_stack_limit: .id {}", extra_limit)?;
+            }
+            writeln!(output)?;
+        }
+        self.deaths_door.deploy(&mut output)?;
+        self.modes.deploy(&mut output)?;
+        self.incompatible_party_member.deploy(&mut output)?;
+        self.death_reaction.deploy(&mut output)?;
+        if !self.other.is_empty() {
+            writeln!(output, "// Unclassified hero info")?;
+            // TODO - maybe change internal format?..
+            let mut other_entries: BTreeMap<_, BTreeMap<_, _>> = BTreeMap::new();
+            for ((entry, key), values) in &self.other {
+                other_entries
+                    .entry(entry.clone())
+                    .or_default()
+                    .insert(key.clone(), values.join(" "));
+            }
+            for (entry, values) in other_entries {
+                write!(output, "{}: ", entry)?;
+                for (key, value) in values {
+                    write!(output, ".{} {} ", key, value)?;
+                }
+                writeln!(output)?;
+            }
+            writeln!(output)?;
+        }
+        Ok(())
+    }
+}
+
+impl DeployableStructured for HeroOverride {
+    fn deploy(&self, path: &std::path::Path) -> io::Result<()> {
+        let mut output = File::create(path)?;
+        writeln!(output, "// Deployed by Darkest Dungeon Mod Bundler\n\n")?;
+
+        self.resistances.deploy(&mut output)?;
+        if let Some(weapons) = &self.weapons {
+            weapons.deploy(&mut output, &self.id)?;
+        }
+        if let Some(armours) = &self.armours {
+            armours.deploy(&mut output, &self.id)?;
+        }
+        if let Some(skills) = &self.skills {
+            skills.deploy(&mut output)?;
+        }
+        if let Some(riposte_skill) = &self.riposte_skill {
+            riposte_skill.deploy(&mut output)?;
+        }
+        if let Some(move_skill) = &self.move_skill {
+            move_skill.deploy(&mut output)?;
+        }
+        if !self.tags.is_empty() {
+            writeln!(output, "// Hero tags")?;
+            for tag in &self.tags {
+                writeln!(output, "tag: .id {}", tag)?;
+            }
+            writeln!(output)?;
+        }
+        if !self.extra_stack_limit.is_empty() {
+            writeln!(output, "// Extra stack limits provided by hero")?;
+            for extra_limit in &self.extra_stack_limit {
+                writeln!(output, "extra_stack_limit: .id {}", extra_limit)?;
+            }
+            writeln!(output)?;
+        }
+        if let Some(deaths_door) = &self.deaths_door {
+            deaths_door.deploy(&mut output)?;
+        }
+        if let Some(modes) = &self.modes {
+            modes.deploy(&mut output)?;
+        }
+        if let Some(incompatible_party_member) = &self.incompatible_party_member {
+            incompatible_party_member.deploy(&mut output)?;
+        }
+        if let Some(death_reaction) = &self.death_reaction {
+            death_reaction.deploy(&mut output)?;
+        }
+        if !self.other.is_empty() {
+            writeln!(output, "// Unclassified hero info")?;
+            // TODO - maybe change internal format to this and not recode on deploy?..
+            let mut other_entries: BTreeMap<_, BTreeMap<_, _>> = BTreeMap::new();
+            for ((entry, key), values) in &self.other {
+                other_entries
+                    .entry(entry.clone())
+                    .or_default()
+                    .insert(key.clone(), values.join(" "));
+            }
+            for (entry, values) in other_entries {
+                write!(output, "{}: ", entry)?;
+                for (key, value) in values {
+                    write!(output, ".{} {} ", key, value)?;
+                }
+                writeln!(output)?;
+            }
+            writeln!(output)?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug)]
 struct Resistances {
     stun: f32,
@@ -868,6 +999,21 @@ impl Resistances {
             _ => panic!("Unexpected patch for resistances: key = {:?}", path),
         }) = num;
     }
+    fn deploy(&self, target: &mut File) -> io::Result<()> {
+        writeln!(
+            target,
+            "resistances: .stun {} .poison {} .bleed {} .disease {} .move {} .debuff {} .death_blow {} .trap {}", 
+            percent_to_string(self.stun),
+            percent_to_string(self.poison),
+            percent_to_string(self.bleed),
+            percent_to_string(self.disease),
+            percent_to_string(self.moving),
+            percent_to_string(self.debuff),
+            percent_to_string(self.death_blow),
+            percent_to_string(self.trap),
+        )?;
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -930,6 +1076,52 @@ impl ResistancesOverride {
             "trap" => &mut self.trap,
             _ => panic!("Unexpected patch for resistances: key = {:?}", path),
         }) = change.into_option().map(GameDataValue::unwrap_f32);
+    }
+    fn deploy(&self, target: &mut File) -> io::Result<()> {
+        let stun = self.stun.map(percent_to_string);
+        let poison = self.poison.map(percent_to_string);
+        let bleed = self.bleed.map(percent_to_string);
+        let disease = self.disease.map(percent_to_string);
+        let moving = self.moving.map(percent_to_string);
+        let debuff = self.debuff.map(percent_to_string);
+        let death_blow = self.death_blow.map(percent_to_string);
+        let trap = self.trap.map(percent_to_string);
+        assert!(
+            stun.is_some()
+                || poison.is_some()
+                || bleed.is_some()
+                || disease.is_some()
+                || moving.is_some()
+                || debuff.is_some()
+                || death_blow.is_some()
+                || trap.is_some()
+        );
+        write!(target, "resistances: ")?;
+        if let Some(stun) = stun {
+            write!(target, " .stun {} ", stun)?;
+        }
+        if let Some(poison) = poison {
+            write!(target, " .poison {} ", poison)?;
+        }
+        if let Some(bleed) = bleed {
+            write!(target, " .bleed {} ", bleed)?;
+        }
+        if let Some(disease) = disease {
+            write!(target, " .disease {} ", disease)?;
+        }
+        if let Some(moving) = moving {
+            write!(target, " .moving {} ", moving)?;
+        }
+        if let Some(debuff) = debuff {
+            write!(target, " .debuff {} ", debuff)?;
+        }
+        if let Some(death_blow) = death_blow {
+            write!(target, " .death_blow {} ", death_blow)?;
+        }
+        if let Some(trap) = trap {
+            write!(target, " .trap {} ", trap)?;
+        }
+        Ok(())
     }
 }
 
@@ -1010,6 +1202,39 @@ impl Weapons {
             _ => panic!("Unexpected key in hero into patch: {:?}", path),
         };
     }
+    fn deploy(&self, target: &mut File, hero_id: &str) -> io::Result<()> {
+        writeln!(
+            target,
+            "weapon: .name \"{}_weapon_0\" {}",
+            hero_id,
+            self.0[0].to_string()
+        )?;
+        writeln!(
+            target,
+            "weapon: .name \"{}_weapon_1\" {} .upgradeRequirementCode 0",
+            hero_id,
+            self.0[1].to_string()
+        )?;
+        writeln!(
+            target,
+            "weapon: .name \"{}_weapon_2\" {} .upgradeRequirementCode 1",
+            hero_id,
+            self.0[2].to_string()
+        )?;
+        writeln!(
+            target,
+            "weapon: .name \"{}_weapon_3\" {} .upgradeRequirementCode 2",
+            hero_id,
+            self.0[3].to_string()
+        )?;
+        writeln!(
+            target,
+            "weapon: .name \"{}_weapon_4\" {} .upgradeRequirementCode 3",
+            hero_id,
+            self.0[4].to_string()
+        )?;
+        Ok(())
+    }
 }
 
 impl Weapon {
@@ -1041,6 +1266,19 @@ impl Weapon {
             .expect("Weapon SPD field is empty");
         out.spd = spd.parse().expect("Weapon SPD field is not a number");
         out
+    }
+}
+impl Display for Weapon {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            ".atk {} .dmg {} {} .crit {} .spd {}",
+            percent_to_string(self.atk),
+            self.dmg.0,
+            self.dmg.1,
+            percent_to_string(self.crit),
+            self.spd
+        )
     }
 }
 
@@ -1096,6 +1334,39 @@ impl Armours {
             _ => panic!("Unexpected key in hero into patch: {:?}", path),
         };
     }
+    fn deploy(&self, target: &mut File, hero_id: &str) -> io::Result<()> {
+        writeln!(
+            target,
+            "armour: .name \"{}_armour_0\" {}",
+            hero_id,
+            self.0[0].to_string()
+        )?;
+        writeln!(
+            target,
+            "armour: .name \"{}_armour_1\" {} .upgradeRequirementCode 0",
+            hero_id,
+            self.0[1].to_string()
+        )?;
+        writeln!(
+            target,
+            "armour: .name \"{}_armour_2\" {} .upgradeRequirementCode 1",
+            hero_id,
+            self.0[2].to_string()
+        )?;
+        writeln!(
+            target,
+            "armour: .name \"{}_armour_3\" {} .upgradeRequirementCode 2",
+            hero_id,
+            self.0[3].to_string()
+        )?;
+        writeln!(
+            target,
+            "armour: .name \"{}_armour_4\" {} .upgradeRequirementCode 3",
+            hero_id,
+            self.0[4].to_string()
+        )?;
+        Ok(())
+    }
 }
 impl Armour {
     fn from_entry(input: DarkestEntry) -> Self {
@@ -1111,6 +1382,18 @@ impl Armour {
             .parse()
             .expect("Armour SPD field is not a number");
         out
+    }
+}
+impl Display for Armour {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            ".def {} .prot {} .hp {} .spd {}",
+            percent_to_string(self.def),
+            self.prot,
+            self.hp,
+            self.spd
+        )
     }
 }
 
@@ -1182,6 +1465,16 @@ impl Skills {
             .entry(level)
             .or_default()
             .apply(path, change);
+    }
+    fn deploy(&self, target: &mut File) -> io::Result<()> {
+        for (id, skill) in &self.0 {
+            writeln!(target, "// Skill: {}\n", id)?;
+            for skill in skill.values() {
+                writeln!(target, "combat_skill: {}", skill.to_string())?;
+            }
+            writeln!(target)?;
+        }
+        Ok(())
     }
 }
 
@@ -1257,6 +1550,25 @@ impl Skill {
             _ => panic!("Unexpected path in hero info: {:?}", path),
         };
     }
+    // TODO - this can be misused
+    fn deploy(&self, target: &mut File) -> io::Result<()> {
+        writeln!(target, "// Riposte Skill")?;
+        writeln!(target, "riposte_skill: {}", self.to_string())?;
+        writeln!(target)?;
+        Ok(())
+    }
+}
+impl Display for Skill {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let effects = self.effects.join(" ");
+        let other = self
+            .other
+            .iter()
+            .map(|(key, value)| format!(".{} {}", key, value))
+            .collect::<Vec<_>>()
+            .join(" ");
+        write!(f, "{} {}", other, effects)
+    }
 }
 
 impl BTreeMappable for Skill {
@@ -1301,6 +1613,16 @@ impl MoveSkill {
             _ => panic!("Unexpected key in hero info patch: {:?}", path),
         };
     }
+    fn deploy(&self, target: &mut File) -> io::Result<()> {
+        writeln!(target, "// Move skill")?;
+        writeln!(
+            target,
+            "combat_move_skill: .id \"move\" .level 0 .type \"move\" .move {} {} .launch 4321",
+            self.backward, self.forward
+        )?;
+        writeln!(target)?;
+        Ok(())
+    }
 }
 
 impl BTreeMappable for MoveSkill {
@@ -1340,6 +1662,18 @@ impl DeathsDoor {
         };
         patch_list(place, path, change);
     }
+    fn deploy(&self, target: &mut File) -> io::Result<()> {
+        writeln!(target, "// Death's Door Effects")?;
+        writeln!(
+            target,
+            "deaths_door: .buffs {} .recovery_buffs {} .recovery_heart_attack_buffs {}",
+            self.buffs.join(" "),
+            self.recovery_buffs.join(" "),
+            self.recovery_heart_attack_buffs.join(" ")
+        )?;
+        writeln!(target)?;
+        Ok(())
+    }
 }
 
 impl BTreeMappable for DeathsDoor {
@@ -1368,6 +1702,17 @@ impl Modes {
             .unwrap_or_else(|| panic!("Unexpected path in hero data: {:?}, mode not found", path))
             .apply(path, change);
     }
+    fn deploy(&self, target: &mut File) -> io::Result<()> {
+        if self.0.is_empty() {
+            return Ok(());
+        }
+        writeln!(target, "// Hero combat modes")?;
+        for (key, mode) in &self.0 {
+            writeln!(target, "mode: .id {} {}", key, mode.to_string())?;
+        }
+        writeln!(target)?;
+        Ok(())
+    }
 }
 
 impl BTreeMappable for Modes {
@@ -1394,6 +1739,17 @@ impl Mode {
         assert!(path.len() == 4);
         let place = self.0.entry(path.get(2).unwrap().clone()).or_default();
         patch_list(place, path, change);
+    }
+}
+impl Display for Mode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // TODO
+        self.0
+            .iter()
+            .map(|(key, values)| format!(" .{} {} ", key, values.join(" ")))
+            .collect::<Vec<_>>()
+            .join(" ")
+            .fmt(f)
     }
 }
 
@@ -1427,6 +1783,19 @@ impl Incompatibilities {
         let place = self.0.entry(path.get(1).unwrap().clone()).or_default();
         patch_list(place, path, change);
     }
+    fn deploy(&self, target: &mut File) -> io::Result<()> {
+        if self.0.is_empty() {
+            return Ok(());
+        }
+        writeln!(target, "// Rules for party incompatibilities")?;
+        for (id, tags) in &self.0 {
+            for tag in tags {
+                writeln!(target, "incompatible_party_member: .id {} .tag {}", id, tag)?;
+            }
+        }
+        writeln!(target)?;
+        Ok(())
+    }
 }
 
 impl BTreeMappable for Incompatibilities {
@@ -1449,6 +1818,17 @@ impl DeathReaction {
         debug_assert_eq!(path[0], "death_reaction");
         assert!(path.len() == 2);
         patch_list(&mut self.0, path, change);
+    }
+    fn deploy(&self, target: &mut File) -> io::Result<()> {
+        if self.0.is_empty() {
+            return Ok(());
+        }
+        writeln!(target, "// Death reactions")?;
+        for reaction in &self.0 {
+            writeln!(target, "death_reaction: {}", reaction)?;
+        }
+        writeln!(target)?;
+        Ok(())
     }
 }
 
