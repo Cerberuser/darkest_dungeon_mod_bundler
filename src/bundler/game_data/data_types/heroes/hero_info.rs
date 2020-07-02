@@ -44,7 +44,7 @@ pub struct HeroInfo {
     weapons: Weapons,
     armours: Armours,
     skills: Skills,
-    riposte_skill: Skill,
+    riposte_skill: Option<Skill>,
     move_skill: MoveSkill,
     tags: Vec<String>,
     extra_stack_limit: Vec<String>,
@@ -81,7 +81,9 @@ impl BTreeMappable for HeroInfo {
         out.extend_prefixed("weapons", self.weapons.to_map());
         out.extend_prefixed("armours", self.armours.to_map());
         out.extend_prefixed("skills", self.skills.to_map());
-        out.extend_prefixed("riposte_skill", self.riposte_skill.to_map());
+        if let Some(riposte_skill) = &self.riposte_skill {
+            out.extend_prefixed("riposte_skill", riposte_skill.to_map());
+        }
         out.extend_prefixed("move_skill", self.move_skill.to_map());
         out.extend_prefixed("tags", self.tags.to_set());
         out.extend_prefixed("extra_stack_limit", self.extra_stack_limit.to_set());
@@ -107,50 +109,48 @@ impl BTreeMappable for HeroInfo {
 impl BTreeMappable for HeroOverride {
     fn to_map(&self) -> DataMap {
         let mut out = DataMap::new();
-        let mut inner = DataMap::new();
 
-        inner.extend_prefixed("resistances", self.resistances.to_map());
+        out.extend_prefixed("resistances", self.resistances.to_map());
         if let Some(weapons) = &self.weapons {
-            inner.extend_prefixed("weapons", weapons.to_map());
+            out.extend_prefixed("weapons", weapons.to_map());
         }
         if let Some(armours) = &self.armours {
-            inner.extend_prefixed("armours", armours.to_map());
+            out.extend_prefixed("armours", armours.to_map());
         }
         if let Some(skills) = &self.skills {
-            inner.extend_prefixed("skills", skills.to_map());
+            out.extend_prefixed("skills", skills.to_map());
         }
         if let Some(riposte_skill) = &self.riposte_skill {
-            inner.extend_prefixed("riposte_skill", riposte_skill.to_map());
+            out.extend_prefixed("riposte_skill", riposte_skill.to_map());
         }
         if let Some(move_skill) = &self.move_skill {
-            inner.extend_prefixed("move_skill", move_skill.to_map());
+            out.extend_prefixed("move_skill", move_skill.to_map());
         }
-        inner.extend_prefixed("tags", self.tags.to_set());
-        inner.extend_prefixed("extra_stack_limit", self.extra_stack_limit.to_set());
+        out.extend_prefixed("tags", self.tags.to_set());
+        out.extend_prefixed("extra_stack_limit", self.extra_stack_limit.to_set());
         if let Some(deaths_door) = &self.deaths_door {
-            inner.extend_prefixed("deaths_door", deaths_door.to_map());
+            out.extend_prefixed("deaths_door", deaths_door.to_map());
         }
         if let Some(modes) = &self.modes {
-            inner.extend_prefixed("modes", modes.to_map());
+            out.extend_prefixed("modes", modes.to_map());
         }
         if let Some(incompatible_party_member) = &self.incompatible_party_member {
-            inner.extend_prefixed(
+            out.extend_prefixed(
                 "incompatible_party_member",
                 incompatible_party_member.to_map(),
             );
         }
         if let Some(death_reaction) = &self.death_reaction {
-            inner.extend_prefixed("death_reaction", death_reaction.to_map());
+            out.extend_prefixed("death_reaction", death_reaction.to_map());
         }
         for (key, value) in &self.other {
             let mut intermid = DataMap::new();
             intermid.extend_prefixed(&key.1, value.to_set());
             let mut intermid_outer = DataMap::new();
             intermid_outer.extend_prefixed(&key.0, intermid);
-            inner.extend_prefixed("other", intermid_outer);
+            out.extend_prefixed("other", intermid_outer);
         }
 
-        out.extend_prefixed(&self.id, inner);
         out
     }
 }
@@ -181,7 +181,7 @@ impl BTreePatchable for HeroInfo {
                 "weapons" => self.weapons.apply(path, change),
                 "armours" => self.armours.apply(path, change),
                 "skills" => self.skills.apply(path, change),
-                "riposte_skill" => self.riposte_skill.apply(path, change),
+                "riposte_skill" => self.riposte_skill.get_or_insert_with(Default::default).apply(path, change),
                 "move_skill" => self.move_skill.apply(path, change),
                 "tags" => patch_list(&mut self.tags, path, change),
                 "extra_stack_limit" => patch_list(&mut self.extra_stack_limit, path, change),
@@ -696,7 +696,7 @@ impl Loadable for HeroInfo {
             weapons: Weapons::from_entries(weapons),
             armours: Armours::from_entries(armours),
             skills: Skills::from_entries(skills),
-            riposte_skill: Skill::from_entries(riposte_skill),
+            riposte_skill: Skill::try_from_entries(riposte_skill),
             move_skill: MoveSkill::from_entry(move_skill.unwrap()),
             tags,
             extra_stack_limit,
@@ -811,13 +811,15 @@ fn opt_vec<T>(v: Vec<T>) -> Option<Vec<T>> {
 impl DeployableStructured for HeroInfo {
     fn deploy(&self, path: &std::path::Path) -> io::Result<()> {
         let mut output = File::create(path)?;
-        writeln!(output, "// Deployed by Darkest Dungeon Mod Bundler\n\n")?;
+        writeln!(output, "// Deployed by Darkest Dungeon Mod Bundler\n")?;
 
         self.resistances.deploy(&mut output)?;
         self.weapons.deploy(&mut output, &self.id)?;
         self.armours.deploy(&mut output, &self.id)?;
         self.skills.deploy(&mut output)?;
-        self.riposte_skill.deploy(&mut output)?;
+        if let Some(riposte_skill) = &self.riposte_skill {
+            riposte_skill.deploy(&mut output)?;
+        }
         self.move_skill.deploy(&mut output)?;
         if !self.tags.is_empty() {
             writeln!(output, "// Hero tags")?;
@@ -1002,7 +1004,7 @@ impl Resistances {
     fn deploy(&self, target: &mut File) -> io::Result<()> {
         writeln!(
             target,
-            "resistances: .stun {} .poison {} .bleed {} .disease {} .move {} .debuff {} .death_blow {} .trap {}", 
+            "resistances: .stun {} .poison {} .bleed {} .disease {} .move {} .debuff {} .death_blow {} .trap {}\n", 
             percent_to_string(self.stun),
             percent_to_string(self.poison),
             percent_to_string(self.bleed),
@@ -1121,6 +1123,7 @@ impl ResistancesOverride {
         if let Some(trap) = trap {
             write!(target, " .trap {} ", trap)?;
         }
+        writeln!(target)?;
         Ok(())
     }
 }
@@ -1203,6 +1206,7 @@ impl Weapons {
         };
     }
     fn deploy(&self, target: &mut File, hero_id: &str) -> io::Result<()> {
+        writeln!(target, "// Weapons\n")?;
         writeln!(
             target,
             "weapon: .name \"{}_weapon_0\" {}",
@@ -1233,6 +1237,7 @@ impl Weapons {
             hero_id,
             self.0[4].to_string()
         )?;
+        writeln!(target)?;
         Ok(())
     }
 }
@@ -1335,6 +1340,7 @@ impl Armours {
         };
     }
     fn deploy(&self, target: &mut File, hero_id: &str) -> io::Result<()> {
+        writeln!(target, "// Armours")?;
         writeln!(
             target,
             "armour: .name \"{}_armour_0\" {}",
@@ -1365,6 +1371,7 @@ impl Armours {
             hero_id,
             self.0[4].to_string()
         )?;
+        writeln!(target)?;
         Ok(())
     }
 }
@@ -1468,7 +1475,7 @@ impl Skills {
     }
     fn deploy(&self, target: &mut File) -> io::Result<()> {
         for (id, skill) in &self.0 {
-            writeln!(target, "// Skill: {}\n", id)?;
+            writeln!(target, "// Skill: {}", id)?;
             for skill in skill.values() {
                 writeln!(target, "combat_skill: {}", skill.to_string())?;
             }
@@ -1495,22 +1502,33 @@ impl BTreeMappable for Skills {
 
 #[derive(Clone, Debug, Default)]
 struct Skill {
+    id: String,
+    level: i32,
     effects: Vec<String>,
-    other: HashMap<String, String>,
+    other: BTreeMap<String, String>,
 }
 
 impl Skill {
+    fn try_from_entries(input: Vec<DarkestEntry>) -> Option<Self> {
+        if input.is_empty() {
+            None
+        } else {
+            Some(Self::from_entries(input))
+        }
+    }
     fn from_entries(mut input: Vec<DarkestEntry>) -> Self {
         let effects = input
             .iter_mut()
             .flat_map(|entry| entry.remove("effect").unwrap_or_default())
             .collect();
-        let other: HashMap<_, _> = input
+        let mut other: BTreeMap<_, _> = input
             .into_iter()
             .flat_map(|entry| entry.into_iter())
             .map(|(key, v)| (key, v.join(" ")))
             .collect();
-        Self { effects, other }
+        let id = other.remove("id").unwrap();
+        let level = other.remove("level").unwrap().parse().expect("Malformed hero info file - wrong skill level format");
+        Self { id, level, effects, other }
     }
     fn get(&self, subpath: &[String]) -> String {
         match subpath[0].as_str() {
@@ -1553,7 +1571,7 @@ impl Skill {
     // TODO - this can be misused
     fn deploy(&self, target: &mut File) -> io::Result<()> {
         writeln!(target, "// Riposte Skill")?;
-        writeln!(target, "riposte_skill: {}", self.to_string())?;
+        writeln!(target, "riposte_skill: {}", self)?;
         writeln!(target)?;
         Ok(())
     }
@@ -1567,7 +1585,7 @@ impl Display for Skill {
             .map(|(key, value)| format!(".{} {}", key, value))
             .collect::<Vec<_>>()
             .join(" ");
-        write!(f, "{} {}", other, effects)
+        write!(f, " .id {} .level {} {} .effects {}", self.id, self.level, other, effects)
     }
 }
 
