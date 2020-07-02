@@ -20,11 +20,11 @@ enum OverwriteChoice {
 
 pub fn deploy(
     sink: &mut cursive::CbSink,
-    mod_path: &Path,
+    mods_path: &Path,
     bundle: GameData,
 ) -> Result<(), DeploymentError> {
     let (name, dir) = ask_for_props(sink);
-    let mod_path = mod_path.join(dir);
+    let mod_path = mods_path.join(dir);
 
     info!("Mod is being deployed to {:?}", mod_path);
     // This is possibly subject for TOCTOU attack, but in this case the user seems to have a problem somewhere else
@@ -81,6 +81,55 @@ pub fn deploy(
         }
         .map_err(DeploymentError::from_io(&target))?;
     }
+
+    // As a final step, we will run steam uploader if we can.
+    // This will generate the compiled localization.
+    let (sender, receiver) = bounded(0);
+    if cfg!(target = "windows") {
+        crate::run_update(sink, move |cursive| {
+            crate::screen(
+                cursive,
+                Dialog::around(TextView::new("Running steam_workshop_upload...")),
+            );
+        });
+        let mut cmd = std::process::Command::new(
+            mods_path
+                .parent()
+                .unwrap()
+                .join("_windows/steam_workshop_upload.exe"),
+        );
+        cmd.arg(project_xml_path);
+        let result = cmd.output().expect("Failed to start uploader");
+        // TODO check for result
+        let stdout = String::from_utf8_lossy(&result.stdout);
+        for line in stdout.lines() {
+            debug!("Uploader stdout: {}", line);
+        }
+        let stderr = String::from_utf8_lossy(&result.stderr);
+        for line in stderr.lines() {
+            debug!("Uploader stderr: {}", line);
+        }
+        let _ = sender.send(());
+    } else {
+        crate::run_update(sink, move |cursive| {
+            crate::screen(
+                cursive,
+                Dialog::around(TextView::new(
+                    "Bundle was deployed successfully, but, since you're not running Windows, we're unable to finish the process automatically.
+                    Please execute the program <DARKEST_DUNGEON_ROOT>/_windows/steam_workshop_upload with the project.xml file,
+                    generated inside your bundle.
+                    This will generate the necessary localization data.",
+                ))
+                .button("OK", move |cursive| {
+                    cursive.pop_layer();
+                    let _ = sender.send(());
+                }),
+            );
+        });
+    }
+    receiver
+        .recv()
+        .expect("Sender was dropped without sending anything");
     Ok(())
 }
 
