@@ -84,8 +84,7 @@ pub fn deploy(
 
     // As a final step, we will run steam uploader if we can.
     // This will generate the compiled localization.
-    let (sender, receiver) = bounded(0);
-    if cfg!(target = "windows") {
+    if cfg!(windows) {
         crate::run_update(sink, move |cursive| {
             crate::screen(
                 cursive,
@@ -109,8 +108,8 @@ pub fn deploy(
         for line in stderr.lines() {
             debug!("Uploader stderr: {}", line);
         }
-        let _ = sender.send(());
     } else {
+        let (sender, receiver) = bounded(0);
         crate::run_update(sink, move |cursive| {
             crate::screen(
                 cursive,
@@ -126,10 +125,10 @@ pub fn deploy(
                 }),
             );
         });
+        receiver
+            .recv()
+            .expect("Sender was dropped without sending anything");
     }
-    receiver
-        .recv()
-        .expect("Sender was dropped without sending anything");
     Ok(())
 }
 

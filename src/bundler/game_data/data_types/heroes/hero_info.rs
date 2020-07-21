@@ -181,7 +181,10 @@ impl BTreePatchable for HeroInfo {
                 "weapons" => self.weapons.apply(path, change),
                 "armours" => self.armours.apply(path, change),
                 "skills" => self.skills.apply(path, change),
-                "riposte_skill" => self.riposte_skill.get_or_insert_with(Default::default).apply(path, change),
+                "riposte_skill" => self
+                    .riposte_skill
+                    .get_or_insert_with(Default::default)
+                    .apply(path, change),
                 "move_skill" => self.move_skill.apply(path, change),
                 "tags" => patch_list(&mut self.tags, path, change),
                 "extra_stack_limit" => patch_list(&mut self.extra_stack_limit, path, change),
@@ -1088,16 +1091,17 @@ impl ResistancesOverride {
         let debuff = self.debuff.map(percent_to_string);
         let death_blow = self.death_blow.map(percent_to_string);
         let trap = self.trap.map(percent_to_string);
-        assert!(
-            stun.is_some()
-                || poison.is_some()
-                || bleed.is_some()
-                || disease.is_some()
-                || moving.is_some()
-                || debuff.is_some()
-                || death_blow.is_some()
-                || trap.is_some()
-        );
+        if stun.is_none()
+            && poison.is_none()
+            && bleed.is_none()
+            && disease.is_none()
+            && moving.is_none()
+            && debuff.is_none()
+            && death_blow.is_none()
+            && trap.is_none()
+        {
+            return Ok(());
+        }
         write!(target, "resistances: ")?;
         if let Some(stun) = stun {
             write!(target, " .stun {} ", stun)?;
@@ -1527,8 +1531,17 @@ impl Skill {
             .map(|(key, v)| (key, v.join(" ")))
             .collect();
         let id = other.remove("id").unwrap();
-        let level = other.remove("level").unwrap().parse().expect("Malformed hero info file - wrong skill level format");
-        Self { id, level, effects, other }
+        let level = other
+            .remove("level")
+            .unwrap()
+            .parse()
+            .expect("Malformed hero info file - wrong skill level format");
+        Self {
+            id,
+            level,
+            effects,
+            other,
+        }
     }
     fn get(&self, subpath: &[String]) -> String {
         match subpath[0].as_str() {
@@ -1585,7 +1598,11 @@ impl Display for Skill {
             .map(|(key, value)| format!(".{} {}", key, value))
             .collect::<Vec<_>>()
             .join(" ");
-        write!(f, " .id {} .level {} {} .effects {}", self.id, self.level, other, effects)
+        write!(
+            f,
+            " .id {} .level {} {} .effects {}",
+            self.id, self.level, other, effects
+        )
     }
 }
 
