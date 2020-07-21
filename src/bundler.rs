@@ -175,6 +175,7 @@ fn do_bundle(
                 path
             )
         });
+        debug!("Applying patch to {:?}", path);
         file.apply_patch(patch)
             .unwrap_or_else(|_| panic!("Error applying patch to {:?}", path));
         mods_data.insert(path, file);

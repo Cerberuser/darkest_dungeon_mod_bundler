@@ -611,16 +611,16 @@ impl BTreePatchable for HeroInfo {
 impl BTreePatchable for HeroOverride {
     fn apply_patch(&mut self, patch: Patch) -> Result<(), ()> {
         debug!("{:?}", patch);
-        todo!()
+        todo!("Applying patch to hero override");
     }
     fn try_merge_patches(
         &self,
         _patches: impl IntoIterator<Item = ModFileChange>,
     ) -> (Patch, Conflicts) {
-        todo!()
+        todo!("Merging patches to hero override");
     }
     fn ask_for_resolve(&self, _sink: &mut cursive::CbSink, _patches: Conflicts) -> Patch {
-        todo!()
+        todo!("Resolving conflicts on hero override");
     }
 }
 
