@@ -12,6 +12,7 @@ pub struct Project {
 
 #[derive(Default, Debug, Clone)]
 pub struct Mod {
+    pub local: bool,
     pub selected: bool,
     pub path: PathBuf,
     project: Project,
@@ -42,21 +43,21 @@ enum LoadModsError {
     XML(#[source] serde_xml_rs::Error, PathBuf),
 }
 
-pub fn load_path(cursive: &mut Cursive, base_path: &str) {
-    info!("Loading Steam library from path: {}", base_path);
-    let base_path = base_path.into();
-    let path = crate::paths::workshop(&base_path);
+fn load_mods_dir(cursive: &mut Cursive, path: PathBuf, local: bool) -> Result<Vec<Mod>, LoadModsError> {
     let dir = match std::fs::read_dir(path) {
         Ok(dir) => dir,
         Err(error) => {
             crate::error(cursive, &error);
-            return;
+            return Err(error.into());
         }
     };
-    let mods = match dir
+    dir
         .map(|item| {
             item.map_err(LoadModsError::Io).and_then(|entry| {
                 let path = entry.path();
+                if path.is_file() {
+                    return Ok(None);
+                }
                 let file = std::fs::File::open(path.join("project.xml"))?;
                 match serde_xml_rs::from_reader::<_, Project>(file) {
                     Ok(project) => {
@@ -65,24 +66,44 @@ pub fn load_path(cursive: &mut Cursive, base_path: &str) {
                             project.title,
                             path.to_string_lossy()
                         );
-                        Ok(Mod {
+                        Ok(Some(Mod {
+                            local,
                             selected: false,
                             path,
                             project,
-                        })
+                        }))
                     }
                     Err(error) => Err(LoadModsError::XML(error, path)),
                 }
             })
         })
-        .collect::<Result<Vec<_>, _>>()
-    {
+        .filter_map(Result::transpose)
+        .collect()
+}
+
+pub fn load_path(cursive: &mut Cursive, base_path: &str) {
+    info!("Loading Steam library from path: {}", base_path);
+    let base_path = base_path.into();
+
+    // First, the Workshop mods...
+    let path = crate::paths::workshop(&base_path);
+    let mut mods = match load_mods_dir(cursive, path, false) {
         Ok(mods) => mods,
         Err(error) => {
             crate::error(cursive, &error);
             return;
-        }
+        },
     };
+    // ...then, the local ones
+    let path = crate::paths::game(&base_path).join("mods");
+    match load_mods_dir(cursive, path, true) {
+        Ok(local_mods) => mods.extend(local_mods),
+        Err(error) => {
+            crate::error(cursive, &error);
+            return;
+        },
+    };
+
     cursive.set_user_data(GlobalData { base_path, mods });
     crate::select::render_lists(cursive);
 }
