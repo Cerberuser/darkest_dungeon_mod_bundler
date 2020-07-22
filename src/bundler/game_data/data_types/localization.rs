@@ -18,6 +18,7 @@ use std::{
     io::{Read, Write},
     path::Path,
 };
+use roxmltree::Node;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct StringsTable(HashMap<String, LanguageTable>);
@@ -86,36 +87,56 @@ impl StringsTable {
             })
             .into();
         // <HACK> Workaround: broken CDATA in some files.
-        xml = regex::Regex::new("<!\\[CDATA([^\\[])").unwrap().replace_all(&xml, |cap: &regex::Captures| {
-            warn!("Found invalid CDATA: {}", &cap[0]);
-            format!("<![CDATA[{}", &cap[1])
-        }).into();
+        xml = regex::Regex::new("<!\\[CDATA([^\\[])")
+            .unwrap()
+            .replace_all(&xml, |cap: &regex::Captures| {
+                warn!("Found invalid CDATA: {}", &cap[0]);
+                format!("<![CDATA[{}", &cap[1])
+            })
+            .into();
 
         // OK, hacks are ended for now, let's load
         let document = roxmltree::Document::parse(&xml)
             .unwrap_or_else(|err| panic!("Malformed localization XML {:?}: {:?}", path, err));
         let root = document.root_element();
-        debug_assert_eq!(root.tag_name().name(), "root");
-        for child in root.children() {
-            if !child.is_element() {
-                continue;
-            }
-            debug_assert_eq!(child.tag_name().name(), "language");
-            let language = child.attribute("id").expect("Language ID not found");
-            let mut table: HashMap<_, Vec<_>> = HashMap::new();
-            for item in child.children() {
-                if !item.is_element() {
-                    continue;
+        
+        // Oh damn... they're not.
+        // <HACK> Sometimes one language table is pulled out into its own file bare, without root tag.
+        match root.tag_name().name() {
+            "root" => {
+                for child in root.children() {
+                    if !child.is_element() {
+                        continue;
+                    }
+                    self.read_language(child);
                 }
-                debug_assert_eq!(item.tag_name().name(), "entry");
-                let key = item.attribute("id").expect("Entry ID not found");
-                let value = item.text().unwrap_or("");
-                table.entry(key.into()).or_default().push(value.into());
             }
-            self.0.entry(language.into()).or_default().extend(table);
+            "language" => {
+                warn!("Single-language file {:?}, output might be incorrect", path);
+                self.read_language(root);
+            }
+            _ => panic!(
+                "Malformed localization XML {:?}: root tag is neither root nor language",
+                path
+            ),
         }
 
         Ok(())
+    }
+    fn read_language(&mut self, child: Node) {
+        debug_assert_eq!(child.tag_name().name(), "language");
+        let language = child.attribute("id").expect("Language ID not found");
+        let mut table: HashMap<_, Vec<_>> = HashMap::new();
+        for item in child.children() {
+            if !item.is_element() {
+                continue;
+            }
+            debug_assert_eq!(item.tag_name().name(), "entry");
+            let key = item.attribute("id").expect("Entry ID not found");
+            let value = item.text().unwrap_or("");
+            table.entry(key.into()).or_default().push(value.into());
+        }
+        self.0.entry(language.into()).or_default().extend(table);
     }
 }
 
@@ -315,7 +336,12 @@ impl DeployableStructured for StringsTable {
             writeln!(output, "\t<language id=\"{}\">", language)?;
             for (id, texts) in &table.0 {
                 for text in texts {
-                    writeln!(output, "\t\t<entry id=\"{}\">{}</entry>", id, format_text(text))?;
+                    writeln!(
+                        output,
+                        "\t\t<entry id=\"{}\">{}</entry>",
+                        id,
+                        format_text(text)
+                    )?;
                 }
             }
             writeln!(output, "\t</language>")?;
