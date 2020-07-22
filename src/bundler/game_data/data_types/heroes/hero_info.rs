@@ -45,14 +45,13 @@ pub struct HeroInfo {
     armours: Armours,
     skills: Skills,
     riposte_skill: Option<Skill>,
-    move_skill: MoveSkill,
+    move_skill: Skill, // TODO - might be not the only one!
     tags: Vec<String>,
     extra_stack_limit: Vec<String>,
     deaths_door: DeathsDoor,
     modes: Modes,
     incompatible_party_member: Incompatibilities,
-    death_reaction: DeathReaction,
-    hp_reaction: HpReaction,
+    unparsed: Unparsed,
     other: HashMap<(String, String), Vec<String>>,
 }
 
@@ -64,14 +63,13 @@ pub struct HeroOverride {
     armours: Option<Armours>,
     skills: Option<Skills>,
     riposte_skill: Option<Skill>,
-    move_skill: Option<MoveSkill>,
+    move_skill: Option<Skill>,
     tags: Vec<String>,
     extra_stack_limit: Vec<String>,
     deaths_door: Option<DeathsDoor>,
     modes: Option<Modes>,
     incompatible_party_member: Option<Incompatibilities>,
-    death_reaction: Option<DeathReaction>,
-    hp_reaction: Option<HpReaction>,
+    unparsed: Unparsed,
     other: HashMap<(String, String), Vec<String>>,
 }
 
@@ -95,8 +93,7 @@ impl BTreeMappable for HeroInfo {
             "incompatible_party_member",
             self.incompatible_party_member.to_map(),
         );
-        out.extend_prefixed("death_reaction", self.death_reaction.to_map());
-        out.extend_prefixed("hp_reaction", self.hp_reaction.to_map());
+        out.extend_prefixed("unparsed", self.unparsed.to_map());
         for (key, value) in &self.other {
             let mut intermid = DataMap::new();
             intermid.extend_prefixed(&key.1, value.to_set());
@@ -143,12 +140,7 @@ impl BTreeMappable for HeroOverride {
                 incompatible_party_member.to_map(),
             );
         }
-        if let Some(death_reaction) = &self.death_reaction {
-            out.extend_prefixed("death_reaction", death_reaction.to_map());
-        }
-        if let Some(hp_reaction) = &self.hp_reaction {
-            out.extend_prefixed("hp_reaction", hp_reaction.to_map());
-        }
+        out.extend_prefixed("unparsed", self.unparsed.to_map());
         for (key, value) in &self.other {
             let mut intermid = DataMap::new();
             intermid.extend_prefixed(&key.1, value.to_set());
@@ -197,8 +189,7 @@ impl BTreePatchable for HeroInfo {
                 "deaths_door" => self.deaths_door.apply(path, change),
                 "modes" => self.modes.apply(path, change),
                 "incompatible_party_member" => self.incompatible_party_member.apply(path, change),
-                "death_reaction" => self.death_reaction.apply(path, change),
-                "hp_reaction" => self.hp_reaction.apply(path, change),
+                "unparsed" => self.unparsed.apply(path, change),
                 "other" => {
                     let first = path.remove(1);
                     let second = path.remove(2);
@@ -660,14 +651,13 @@ impl Loadable for HeroInfo {
         let mut armours = vec![];
         let mut skills = vec![];
         let mut riposte_skill = vec![];
-        let mut move_skill = None;
+        let mut move_skill = vec![];
         let mut tags = vec![];
         let mut extra_stack_limit = vec![];
         let mut deaths_door = None;
         let mut modes = vec![];
         let mut incompatible_party_member = vec![];
-        let mut death_reaction = vec![];
-        let mut hp_reaction = vec![];
+        let mut unparsed = vec![];
         let mut other = HashMap::new();
 
         for (key, entry) in darkest_file {
@@ -680,10 +670,7 @@ impl Loadable for HeroInfo {
                 "armour" => armours.push(entry),
                 "combat_skill" => skills.push(entry),
                 "riposte_skill" => riposte_skill.push(entry),
-                "combat_move_skill" => {
-                    let existing = move_skill.replace(entry);
-                    debug_assert!(existing.is_none());
-                }
+                "combat_move_skill" => move_skill.push(entry),
                 "tag" => tags.extend(entry.get("id").cloned().unwrap()),
                 "extra_stack_limit" => extra_stack_limit.extend(entry.get("id").cloned().unwrap()),
                 "deaths_door" => {
@@ -692,8 +679,9 @@ impl Loadable for HeroInfo {
                 }
                 "mode" => modes.push(entry),
                 "incompatible_party_member" => incompatible_party_member.push(entry),
-                "death_reaction" => death_reaction.push(entry),
-                "hp_reaction" => hp_reaction.push(entry),
+                "death_reaction" | "hp_reaction" | "overstressed_modifier" => {
+                    unparsed.push((key, entry))
+                }
                 _ => {
                     for (subkey, values) in entry {
                         let existing = other.insert((key.clone(), subkey), values);
@@ -709,14 +697,13 @@ impl Loadable for HeroInfo {
             armours: Armours::from_entries(armours),
             skills: Skills::from_entries(skills),
             riposte_skill: Skill::try_from_entries(riposte_skill),
-            move_skill: MoveSkill::from_entry(move_skill.unwrap()),
+            move_skill: Skill::from_entries(move_skill),
             tags,
             extra_stack_limit,
             deaths_door: DeathsDoor::from_entry(deaths_door.unwrap()),
             modes: Modes::from_entries(modes),
             incompatible_party_member: Incompatibilities::from_entries(incompatible_party_member),
-            death_reaction: DeathReaction::from_entries(death_reaction),
-            hp_reaction: HpReaction::from_entries(hp_reaction),
+            unparsed: Unparsed::from_entries(unparsed),
             other,
         })
     }
@@ -751,14 +738,13 @@ impl Loadable for HeroOverride {
         let mut armours = vec![];
         let mut skills = vec![];
         let mut riposte_skill = vec![];
-        let mut move_skill = None;
+        let mut move_skill = vec![];
         let mut tags = vec![];
         let mut extra_stack_limit = vec![];
         let mut deaths_door = None;
         let mut modes = vec![];
         let mut incompatible_party_member = vec![];
-        let mut death_reaction = vec![];
-        let mut hp_reaction = vec![];
+        let mut unparsed = vec![];
         let mut other = HashMap::new();
 
         for (key, entry) in darkest_file {
@@ -771,10 +757,7 @@ impl Loadable for HeroOverride {
                 "armour" => armours.push(entry),
                 "combat_skill" => skills.push(entry),
                 "riposte_skill" => riposte_skill.push(entry),
-                "combat_move_skill" => {
-                    let existing = move_skill.replace(entry);
-                    debug_assert!(existing.is_none());
-                }
+                "combat_move_skill" => move_skill.push(entry),
                 "tag" => tags.extend(entry.get("id").cloned().unwrap()),
                 "extra_stack_limit" => extra_stack_limit.extend(entry.get("id").cloned().unwrap()),
                 "deaths_door" => {
@@ -783,8 +766,9 @@ impl Loadable for HeroOverride {
                 }
                 "mode" => modes.push(entry),
                 "incompatible_party_member" => incompatible_party_member.push(entry),
-                "death_reaction" => death_reaction.push(entry),
-                "hp_reaction" => hp_reaction.push(entry),
+                "death_reaction" | "hp_reaction" | "overstressed_modifier" => {
+                    unparsed.push((key, entry))
+                }
                 _ => {
                     for (subkey, values) in entry {
                         let existing = other.insert((key.clone(), subkey), values);
@@ -802,15 +786,14 @@ impl Loadable for HeroOverride {
             armours: opt_vec(armours).map(Armours::from_entries),
             skills: opt_vec(skills).map(Skills::from_entries),
             riposte_skill: opt_vec(riposte_skill).map(Skill::from_entries),
-            move_skill: move_skill.map(MoveSkill::from_entry),
+            move_skill: opt_vec(move_skill).map(Skill::from_entries),
             tags,
             extra_stack_limit,
             deaths_door: deaths_door.map(DeathsDoor::from_entry),
             modes: opt_vec(modes).map(Modes::from_entries),
             incompatible_party_member: opt_vec(incompatible_party_member)
                 .map(Incompatibilities::from_entries),
-            death_reaction: opt_vec(death_reaction).map(DeathReaction::from_entries),
-            hp_reaction: opt_vec(hp_reaction).map(HpReaction::from_entries),
+            unparsed: Unparsed::from_entries(unparsed),
             other,
         })
     }
@@ -854,8 +837,7 @@ impl DeployableStructured for HeroInfo {
         self.deaths_door.deploy(&mut output)?;
         self.modes.deploy(&mut output)?;
         self.incompatible_party_member.deploy(&mut output)?;
-        self.death_reaction.deploy(&mut output)?;
-        self.hp_reaction.deploy(&mut output)?;
+        self.unparsed.deploy(&mut output)?;
         if !self.other.is_empty() {
             writeln!(output, "// Unclassified hero info")?;
             // TODO - maybe change internal format?..
@@ -923,12 +905,7 @@ impl DeployableStructured for HeroOverride {
         if let Some(incompatible_party_member) = &self.incompatible_party_member {
             incompatible_party_member.deploy(&mut output)?;
         }
-        if let Some(death_reaction) = &self.death_reaction {
-            death_reaction.deploy(&mut output)?;
-        }
-        if let Some(hp_reaction) = &self.hp_reaction {
-            hp_reaction.deploy(&mut output)?;
-        }
+        self.unparsed.deploy(&mut output)?;
         if !self.other.is_empty() {
             writeln!(output, "// Unclassified hero info")?;
             // TODO - maybe change internal format to this and not recode on deploy?..
@@ -1608,7 +1585,7 @@ impl Skill {
 }
 impl Display for Skill {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let effects = self.effects.join(" ");
+        let effects = if self.effects.is_empty() { "".into() } else { String::from(".effect ") + &self.effects.join(" ") };
         let other = self
             .other
             .iter()
@@ -1617,7 +1594,7 @@ impl Display for Skill {
             .join(" ");
         write!(
             f,
-            " .id {} .level {} {} .effects {}",
+            " .id {} .level {} {} {}",
             self.id, self.level, other, effects
         )
     }
@@ -1634,54 +1611,6 @@ impl BTreeMappable for Skill {
                 .into_iter()
                 .map(|(key, value)| (vec![key], value.into())),
         );
-        out
-    }
-}
-
-#[derive(Clone, Debug)]
-struct MoveSkill {
-    forward: i32,
-    backward: i32,
-}
-impl MoveSkill {
-    fn from_entry(input: DarkestEntry) -> Self {
-        let mut dmg = input
-            .get("move")
-            .expect("Move skill MOVE field not found")
-            .iter()
-            .map(|s| s.parse().expect("Move skill MOVE field is not a number"));
-        Self {
-            backward: dmg.next().expect("Move skill MOVE field is empty"),
-            forward: dmg
-                .next()
-                .expect("Move skill MOVE field has only one entry"),
-        }
-    }
-    fn apply(&mut self, path: Vec<String>, change: ItemChange) {
-        debug_assert_eq!(path[0], "move_skill");
-        match path[1].as_str() {
-            "forward" => self.forward = change.unwrap_set().unwrap_i32(),
-            "backward" => self.backward = change.unwrap_set().unwrap_i32(),
-            _ => panic!("Unexpected key in hero info patch: {:?}", path),
-        };
-    }
-    fn deploy(&self, target: &mut File) -> io::Result<()> {
-        writeln!(target, "// Move skill")?;
-        writeln!(
-            target,
-            "combat_move_skill: .id \"move\" .level 0 .type \"move\" .move {} {} .launch 4321",
-            self.backward, self.forward
-        )?;
-        writeln!(target)?;
-        Ok(())
-    }
-}
-
-impl BTreeMappable for MoveSkill {
-    fn to_map(&self) -> DataMap {
-        let mut out = DataMap::new();
-        out.insert(vec!["forward".into()], self.forward.into());
-        out.insert(vec!["backward".into()], self.backward.into());
         out
     }
 }
@@ -1861,61 +1790,40 @@ impl BTreeMappable for Incompatibilities {
 }
 
 #[derive(Clone, Debug)]
-struct DeathReaction(Vec<String>);
-impl DeathReaction {
-    fn from_entries(input: Vec<DarkestEntry>) -> Self {
-        Self(input.into_iter().map(|entry| entry.to_string()).collect())
+struct Unparsed(HashMap<String, Vec<String>>);
+impl Unparsed {
+    fn from_entries(input: Vec<(String, DarkestEntry)>) -> Self {
+        let mut inner: HashMap<_, Vec<_>> = HashMap::new();
+        for (key, entry) in input {
+            inner.entry(key).or_default().push(entry.to_string());
+        }
+        Self(inner)
     }
     fn apply(&mut self, path: Vec<String>, change: ItemChange) {
-        debug_assert_eq!(path[0], "death_reaction");
-        assert!(path.len() == 2);
-        patch_list(&mut self.0, path, change);
+        assert!(path.len() == 3);
+        patch_list(self.0.entry(path[1].clone()).or_default(), path, change);
     }
     fn deploy(&self, target: &mut File) -> io::Result<()> {
         if self.0.is_empty() {
             return Ok(());
         }
-        writeln!(target, "// Death reactions")?;
-        for reaction in &self.0 {
-            writeln!(target, "death_reaction: {}", reaction)?;
+        writeln!(target, "// Unparsed entries")?;
+        for (key, entries) in &self.0 {
+            for entry in entries {
+                writeln!(target, "{}: {}", key, entry)?;
+            }
         }
         writeln!(target)?;
         Ok(())
     }
 }
 
-impl BTreeMappable for DeathReaction {
+impl BTreeMappable for Unparsed {
     fn to_map(&self) -> DataMap {
-        self.0.to_set()
-    }
-}
-
-#[derive(Clone, Debug)]
-struct HpReaction(Vec<String>);
-impl HpReaction {
-    fn from_entries(input: Vec<DarkestEntry>) -> Self {
-        Self(input.into_iter().map(|entry| entry.to_string()).collect())
-    }
-    fn apply(&mut self, path: Vec<String>, change: ItemChange) {
-        debug_assert_eq!(path[0], "hp_reaction");
-        assert!(path.len() == 2);
-        patch_list(&mut self.0, path, change);
-    }
-    fn deploy(&self, target: &mut File) -> io::Result<()> {
-        if self.0.is_empty() {
-            return Ok(());
+        let mut out = DataMap::new();
+        for (key, value) in &self.0 {
+            out.extend_prefixed(&key, value.to_set());
         }
-        writeln!(target, "// HP reactions")?;
-        for reaction in &self.0 {
-            writeln!(target, "hp_reaction: {}", reaction)?;
-        }
-        writeln!(target)?;
-        Ok(())
-    }
-}
-
-impl BTreeMappable for HpReaction {
-    fn to_map(&self) -> DataMap {
-        self.0.to_set()
+        out
     }
 }
