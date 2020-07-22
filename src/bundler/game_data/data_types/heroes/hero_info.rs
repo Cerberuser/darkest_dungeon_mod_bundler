@@ -52,6 +52,7 @@ pub struct HeroInfo {
     modes: Modes,
     incompatible_party_member: Incompatibilities,
     death_reaction: DeathReaction,
+    hp_reaction: HpReaction,
     other: HashMap<(String, String), Vec<String>>,
 }
 
@@ -70,6 +71,7 @@ pub struct HeroOverride {
     modes: Option<Modes>,
     incompatible_party_member: Option<Incompatibilities>,
     death_reaction: Option<DeathReaction>,
+    hp_reaction: Option<HpReaction>,
     other: HashMap<(String, String), Vec<String>>,
 }
 
@@ -94,6 +96,7 @@ impl BTreeMappable for HeroInfo {
             self.incompatible_party_member.to_map(),
         );
         out.extend_prefixed("death_reaction", self.death_reaction.to_map());
+        out.extend_prefixed("hp_reaction", self.hp_reaction.to_map());
         for (key, value) in &self.other {
             let mut intermid = DataMap::new();
             intermid.extend_prefixed(&key.1, value.to_set());
@@ -142,6 +145,9 @@ impl BTreeMappable for HeroOverride {
         }
         if let Some(death_reaction) = &self.death_reaction {
             out.extend_prefixed("death_reaction", death_reaction.to_map());
+        }
+        if let Some(hp_reaction) = &self.hp_reaction {
+            out.extend_prefixed("hp_reaction", hp_reaction.to_map());
         }
         for (key, value) in &self.other {
             let mut intermid = DataMap::new();
@@ -192,6 +198,7 @@ impl BTreePatchable for HeroInfo {
                 "modes" => self.modes.apply(path, change),
                 "incompatible_party_member" => self.incompatible_party_member.apply(path, change),
                 "death_reaction" => self.death_reaction.apply(path, change),
+                "hp_reaction" => self.hp_reaction.apply(path, change),
                 "other" => {
                     let first = path.remove(1);
                     let second = path.remove(2);
@@ -660,6 +667,7 @@ impl Loadable for HeroInfo {
         let mut modes = vec![];
         let mut incompatible_party_member = vec![];
         let mut death_reaction = vec![];
+        let mut hp_reaction = vec![];
         let mut other = HashMap::new();
 
         for (key, entry) in darkest_file {
@@ -685,6 +693,7 @@ impl Loadable for HeroInfo {
                 "mode" => modes.push(entry),
                 "incompatible_party_member" => incompatible_party_member.push(entry),
                 "death_reaction" => death_reaction.push(entry),
+                "hp_reaction" => hp_reaction.push(entry),
                 _ => {
                     for (subkey, values) in entry {
                         let existing = other.insert((key.clone(), subkey), values);
@@ -707,6 +716,7 @@ impl Loadable for HeroInfo {
             modes: Modes::from_entries(modes),
             incompatible_party_member: Incompatibilities::from_entries(incompatible_party_member),
             death_reaction: DeathReaction::from_entries(death_reaction),
+            hp_reaction: HpReaction::from_entries(hp_reaction),
             other,
         })
     }
@@ -748,6 +758,7 @@ impl Loadable for HeroOverride {
         let mut modes = vec![];
         let mut incompatible_party_member = vec![];
         let mut death_reaction = vec![];
+        let mut hp_reaction = vec![];
         let mut other = HashMap::new();
 
         for (key, entry) in darkest_file {
@@ -773,6 +784,7 @@ impl Loadable for HeroOverride {
                 "mode" => modes.push(entry),
                 "incompatible_party_member" => incompatible_party_member.push(entry),
                 "death_reaction" => death_reaction.push(entry),
+                "hp_reaction" => hp_reaction.push(entry),
                 _ => {
                     for (subkey, values) in entry {
                         let existing = other.insert((key.clone(), subkey), values);
@@ -798,6 +810,7 @@ impl Loadable for HeroOverride {
             incompatible_party_member: opt_vec(incompatible_party_member)
                 .map(Incompatibilities::from_entries),
             death_reaction: opt_vec(death_reaction).map(DeathReaction::from_entries),
+            hp_reaction: opt_vec(hp_reaction).map(HpReaction::from_entries),
             other,
         })
     }
@@ -842,6 +855,7 @@ impl DeployableStructured for HeroInfo {
         self.modes.deploy(&mut output)?;
         self.incompatible_party_member.deploy(&mut output)?;
         self.death_reaction.deploy(&mut output)?;
+        self.hp_reaction.deploy(&mut output)?;
         if !self.other.is_empty() {
             writeln!(output, "// Unclassified hero info")?;
             // TODO - maybe change internal format?..
@@ -911,6 +925,9 @@ impl DeployableStructured for HeroOverride {
         }
         if let Some(death_reaction) = &self.death_reaction {
             death_reaction.deploy(&mut output)?;
+        }
+        if let Some(hp_reaction) = &self.hp_reaction {
+            hp_reaction.deploy(&mut output)?;
         }
         if !self.other.is_empty() {
             writeln!(output, "// Unclassified hero info")?;
@@ -1868,6 +1885,36 @@ impl DeathReaction {
 }
 
 impl BTreeMappable for DeathReaction {
+    fn to_map(&self) -> DataMap {
+        self.0.to_set()
+    }
+}
+
+#[derive(Clone, Debug)]
+struct HpReaction(Vec<String>);
+impl HpReaction {
+    fn from_entries(input: Vec<DarkestEntry>) -> Self {
+        Self(input.into_iter().map(|entry| entry.to_string()).collect())
+    }
+    fn apply(&mut self, path: Vec<String>, change: ItemChange) {
+        debug_assert_eq!(path[0], "hp_reaction");
+        assert!(path.len() == 2);
+        patch_list(&mut self.0, path, change);
+    }
+    fn deploy(&self, target: &mut File) -> io::Result<()> {
+        if self.0.is_empty() {
+            return Ok(());
+        }
+        writeln!(target, "// HP reactions")?;
+        for reaction in &self.0 {
+            writeln!(target, "hp_reaction: {}", reaction)?;
+        }
+        writeln!(target)?;
+        Ok(())
+    }
+}
+
+impl BTreeMappable for HpReaction {
     fn to_map(&self) -> DataMap {
         self.0.to_set()
     }

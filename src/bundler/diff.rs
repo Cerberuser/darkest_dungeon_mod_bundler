@@ -1,6 +1,6 @@
 use super::game_data::GameDataValue;
 
-use log::*;
+// use log::*;
 use std::collections::BTreeMap;
 
 pub type DataMap = BTreeMap<Vec<String>, GameDataValue>;
@@ -29,15 +29,15 @@ pub type Patch = BTreeMap<Vec<String>, ItemChange>;
 pub type Conflicts = BTreeMap<Vec<String>, Vec<(String, ItemChange)>>;
 
 pub fn diff(original: DataMap, patched: DataMap) -> Patch {
-    debug!("Calculating diff");
-    debug!("Original: {:?}", original);
-    debug!("Patched: {:?}", patched);
+    // debug!("Calculating diff");
+    // debug!("Original: {:?}", original);
+    // debug!("Patched: {:?}", patched);
     let mut out = Patch::new();
     let mut original = original.into_iter();
 
     let mut orig_item = original.next();
     for (path, entry) in patched {
-        debug!("Using patched item: {:?} -> {:?}", path, entry);
+        // debug!("Using patched item: {:?} -> {:?}", path, entry);
         loop {
             if let Some((old_path, old_entry)) = &orig_item {
                 if old_path > &path {
