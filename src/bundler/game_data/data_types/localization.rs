@@ -16,13 +16,96 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     io::{Read, Write},
+    path::Path,
 };
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct StringsTable(HashMap<String, LanguageTable>);
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct LanguageTable(HashMap<String, String>);
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+struct LanguageTable(HashMap<String, Vec<String>>);
+
+impl StringsTable {
+    fn load_file(&mut self, path: impl AsRef<Path>) -> std::io::Result<()> {
+        let path = path.as_ref();
+
+        let mut xml_raw = vec![];
+        std::fs::File::open(path)?.read_to_end(&mut xml_raw)?;
+
+        // <HACK> Workaround: localization is sometimes invalid UTF-8.
+        let mut xml = match String::from_utf8_lossy(&xml_raw) {
+            Cow::Borrowed(s) => String::from(s),
+            Cow::Owned(s) => {
+                warn!("Got some invalid UTF-8; performed lossy conversion");
+                debug!("Context:");
+                for capture in regex::Regex::new(&format!(
+                    "(.{{0,10}}){}(.{{0, 10}})",
+                    std::char::REPLACEMENT_CHARACTER
+                ))
+                .unwrap()
+                .captures_iter(&s)
+                {
+                    debug!(
+                        "...{}{}{}...",
+                        &capture[1].escape_debug(),
+                        std::char::REPLACEMENT_CHARACTER,
+                        &capture[2].escape_debug()
+                    );
+                }
+                s
+            }
+        };
+        // <HACK> Workaround: some localization files contain too big (non-existing) XML version.
+        let decl = xml.lines().next().unwrap();
+        let version = regex::Regex::new(r#"<?xml version="(.*?)"(.*)>"#)
+            .unwrap()
+            .captures(decl);
+        if let Some(version) = version {
+            let version = &version[1];
+            if version > "1.1" {
+                warn!("Got too large XML version number; replacing declaration line");
+                debug!("Original declaration line: {}", decl);
+                debug!("Original version: {}", version);
+                xml = String::from(r#"<?xml version="1.0" encoding="UTF-8"?>"#)
+                    + xml.splitn(2, '\n').nth(1).unwrap();
+            }
+        }
+        // <HACK> Workaround: some localization files contain invalid comments.
+        xml = regex::Regex::new("<!---(.*?)--->")
+            .unwrap()
+            .replace_all(&xml, |cap: &regex::Captures| {
+                warn!("Found invalid comment: {}", &cap[0]);
+                "".to_string()
+            })
+            .into();
+
+        // OK, hacks are ended for now, let's load
+        let document = roxmltree::Document::parse(&xml)
+            .unwrap_or_else(|err| panic!("Malformed localization XML {:?}: {:?}", path, err));
+        let root = document.root_element();
+        debug_assert_eq!(root.tag_name().name(), "root");
+        for child in root.children() {
+            if !child.is_element() {
+                continue;
+            }
+            debug_assert_eq!(child.tag_name().name(), "language");
+            let language = child.attribute("id").expect("Language ID not found");
+            let mut table: HashMap<_, Vec<_>> = HashMap::new();
+            for item in child.children() {
+                if !item.is_element() {
+                    continue;
+                }
+                debug_assert_eq!(item.tag_name().name(), "entry");
+                let key = item.attribute("id").expect("Entry ID not found");
+                let value = item.text().unwrap_or("");
+                table.entry(key.into()).or_default().push(value.into());
+            }
+            self.0.entry(language.into()).or_default().extend(table);
+        }
+
+        Ok(())
+    }
+}
 
 impl BTreeMappable for StringsTable {
     fn to_map(&self) -> DataMap {
@@ -42,13 +125,34 @@ impl BTreePatchable for StringsTable {
             }
             let language = path.get(0).unwrap();
             let entry_key = path.get(1).unwrap();
-            let lang_table = &mut self.0.get_mut(language).ok_or(())?.0;
+            let lang_table = &mut self.0.entry(language.clone()).or_default().0;
             match value {
                 ItemChange::Set(value) => match value {
-                    GameDataValue::String(value) => lang_table.insert(entry_key.clone(), value),
+                    GameDataValue::String(value) => {
+                        debug!("Applying patch with XML: {}", value);
+                        let document = roxmltree::Document::parse(&value)
+                            .unwrap_or_else(|err| panic!("Malformed patch: {:?}", err));
+                        let root = document.root_element();
+                        debug!("Root element: {:?}", root);
+                        let values = root
+                            .children()
+                            .filter_map(|item| {
+                                if item.is_element() {
+                                    debug!("Item: {:?}", item);
+                                    assert_eq!(item.tag_name().name(), "entry");
+                                    Some(item.text().unwrap_or("").to_string())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        lang_table.insert(entry_key.clone(), values);
+                    }
                     _ => return Err(()),
                 },
-                ItemChange::Removed => lang_table.remove(entry_key),
+                ItemChange::Removed => {
+                    lang_table.remove(entry_key);
+                }
             };
         }
         Ok(())
@@ -61,7 +165,6 @@ impl BTreePatchable for StringsTable {
         let mut merged = Patch::new();
         let mut unmerged = Conflicts::new();
 
-        // TODO - this is almost the same as `regroup` in `resolve` module
         let mut changes = HashMap::new();
         for (mod_name, mod_changes) in patches {
             for (path, item) in mod_changes {
@@ -73,9 +176,12 @@ impl BTreePatchable for StringsTable {
                     .push((mod_name.clone(), item));
             }
         }
-        for (path, changes) in changes {
+        for (path, mut changes) in changes {
             debug_assert!(!changes.is_empty());
-            if changes.len() == 1 {
+            changes.retain(|change| !matches!(change, (_, ItemChange::Removed)));
+            if changes.is_empty() {
+                merged.insert(path, ItemChange::Removed);
+            } else if changes.len() == 1 {
                 merged.insert(path, changes.into_iter().next().unwrap().1);
             } else {
                 for change in changes {
@@ -150,7 +256,7 @@ impl BTreePatchable for StringsTable {
                         cursive.pop_layer();
                         resolve_sender.send(ItemChange::Set(value.into())).unwrap();
                     })
-                    .button("Remove", move |cursive| {
+                    .button("Drop", move |cursive| {
                         cursive.pop_layer();
                         sender.send(ItemChange::Removed).unwrap();
                     })
@@ -170,89 +276,21 @@ impl Loadable for StringsTable {
     fn prepare_list(root_path: &std::path::Path) -> std::io::Result<Vec<std::path::PathBuf>> {
         let path = root_path.join("localization");
         if path.exists() {
-            collect_paths(&path, |path| Ok(has_ext(path, "xml")))
+            Ok(vec![path.join("bundled.xml")])
         } else {
             Ok(vec![])
         }
     }
     fn load_raw(path: &std::path::Path) -> std::io::Result<Self> {
-        let mut out = HashMap::new();
-
-        let mut xml_raw = vec![];
-        std::fs::File::open(path)?.read_to_end(&mut xml_raw)?;
-
-        // <HACK> Workaround: localization is sometimes invalid UTF-8.
-        let mut xml = match String::from_utf8_lossy(&xml_raw) {
-            Cow::Borrowed(s) => String::from(s),
-            Cow::Owned(s) => {
-                warn!("Got some invalid UTF-8; performed lossy conversion");
-                debug!("Context:");
-                for capture in regex::Regex::new(&format!(
-                    "(.{{0,10}}){}(.{{0, 10}})",
-                    std::char::REPLACEMENT_CHARACTER
-                ))
-                .unwrap()
-                .captures_iter(&s)
-                {
-                    debug!(
-                        "...{}{}{}...",
-                        &capture[1].escape_debug(),
-                        std::char::REPLACEMENT_CHARACTER,
-                        &capture[2].escape_debug()
-                    );
-                }
-                s
-            }
-        };
-        // <HACK> Workaround: some localization files contain too big (non-existing) XML version.
-        let decl = xml.lines().next().unwrap();
-        let version = regex::Regex::new(r#"<?xml version="(.*?)"(.*)>"#)
-            .unwrap()
-            .captures(decl);
-        if let Some(version) = version {
-            let version = &version[1];
-            if version > "1.1" {
-                warn!("Got too large XML version number; replacing declaration line");
-                debug!("Original declaration line: {}", decl);
-                debug!("Original version: {}", version);
-                xml = String::from(r#"<?xml version="1.0" encoding="UTF-8"?>"#)
-                    + xml.splitn(2, '\n').nth(1).unwrap();
-            }
+        let mut collected = Self::default();
+        let files = collect_paths(
+            &path.parent().expect("Broken path to localization files"),
+            |path| Ok(has_ext(path, "xml")),
+        )?;
+        for file in files {
+            collected.load_file(file)?;
         }
-        // <HACK> Workaround: some localization files contain invalid comments.
-        xml = regex::Regex::new("<!---(.*?)--->")
-            .unwrap()
-            .replace_all(&xml, |cap: &regex::Captures| {
-                warn!("Found invalid comment: {}", &cap[0]);
-                "".to_string()
-            })
-            .into();
-
-        // OK, hacks are ended for now, let's load
-        let document = roxmltree::Document::parse(&xml)
-            .unwrap_or_else(|err| panic!("Malformed localization XML {:?}: {:?}", path, err));
-        let root = document.root_element();
-        debug_assert_eq!(root.tag_name().name(), "root");
-        for child in root.children() {
-            if !child.is_element() {
-                continue;
-            }
-            debug_assert_eq!(child.tag_name().name(), "language");
-            let language = child.attribute("id").expect("Language ID not found");
-            let mut table = HashMap::new();
-            for item in child.children() {
-                if !item.is_element() {
-                    continue;
-                }
-                debug_assert_eq!(item.tag_name().name(), "entry");
-                let key = item.attribute("id").expect("Entry ID not found");
-                let value = item.text().unwrap_or("");
-                table.insert(key.into(), value.into());
-            }
-            out.insert(language.into(), LanguageTable(table));
-        }
-
-        Ok(Self(out))
+        Ok(collected)
     }
 }
 
@@ -263,14 +301,10 @@ impl DeployableStructured for StringsTable {
         writeln!(output, "<root>")?;
         for (language, table) in &self.0 {
             writeln!(output, "\t<language id=\"{}\">", language)?;
-            for (id, text) in &table.0 {
-                let text = if text.contains(&['<', '>', '&'][..]) {
-                    // Let's hope that there would never be "]]>" in valid strings...
-                    format!("<![CDATA[{}]]>", text)
-                } else {
-                    text.clone()
-                };
-                writeln!(output, "\t\t<entry id=\"{}\">{}</entry>", id, text)?;
+            for (id, texts) in &table.0 {
+                for text in texts {
+                    writeln!(output, "\t\t<entry id=\"{}\">{}</entry>", id, format_text(text))?;
+                }
             }
             writeln!(output, "\t</language>")?;
         }
@@ -279,12 +313,38 @@ impl DeployableStructured for StringsTable {
     }
 }
 
+fn format_text(text: impl AsRef<str>) -> String {
+    let text = text.as_ref();
+    if text.contains(&['<', '>', '&'][..]) {
+        // Let's hope that there would never be "]]>" in valid strings...
+        format!("<![CDATA[{}]]>", text)
+    } else {
+        text.into()
+    }
+}
+
+fn format_entries(entries: Vec<String>) -> String {
+    let mut out = r#"<?xml version="1.0" encoding="UTF-8"?>"#.to_string();
+    out.push_str("\n<root>");
+    for entry in entries {
+        out.push_str(&format!("\n<entry>{}</entry>", format_text(entry)));
+    }
+    out.push_str("\n</root>");
+    out
+}
+
+impl Extend<(String, Vec<String>)> for LanguageTable {
+    fn extend<T: IntoIterator<Item = (String, Vec<String>)>>(&mut self, iter: T) {
+        self.0.extend(iter)
+    }
+}
+
 impl BTreeMappable for LanguageTable {
     fn to_map(&self) -> DataMap {
         self.0
             .clone()
             .into_iter()
-            .map(|(key, value)| (vec![key], value.into()))
+            .map(|(key, value)| (vec![key], format_entries(value).into()))
             .collect()
     }
 }
