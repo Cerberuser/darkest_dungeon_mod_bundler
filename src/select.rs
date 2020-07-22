@@ -193,7 +193,8 @@ fn do_deselect(cursive: &mut Cursive, item: &Mod) {
     }
 
     let cb = cursive.call_on_name("Mods selection", |dialog: &mut Dialog| {
-        dialog.call_on_name("Available", |list: &mut SelectView<Mod>| {
+        let list_id = if item.local { "Available Local" } else { "Available Workshop" };
+        dialog.call_on_name(list_id, |list: &mut SelectView<Mod>| {
             list.add_item(item.name(), item.clone());
             list.sort_by_label();
         });

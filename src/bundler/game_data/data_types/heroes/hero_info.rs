@@ -1,7 +1,7 @@
 use crate::bundler::{
     diff::{Conflicts, DataMap, ItemChange, Patch},
     game_data::{
-        file_types::{darkest_parser, DarkestEntry},
+        file_types::{darkest_parser, err_context, DarkestEntry},
         BTreeMapExt, BTreeMappable, BTreePatchable, BTreeSetable, DeployableStructured,
         GameDataValue, Loadable,
     },
@@ -642,7 +642,10 @@ impl Loadable for HeroInfo {
             .to_string();
 
         let darkest_file = std::fs::read_to_string(path)?;
-        let (darkest_file, rest) = darkest_parser().easy_parse(darkest_file.as_str()).unwrap();
+        let (darkest_file, rest) = darkest_parser()
+            .easy_parse(darkest_file.as_str())
+            .map_err(|err| err_context(err, &darkest_file))
+            .unwrap();
         debug_assert_eq!(rest, "");
 
         // OK, now let's get these parts out...
@@ -679,9 +682,10 @@ impl Loadable for HeroInfo {
                 }
                 "mode" => modes.push(entry),
                 "incompatible_party_member" => incompatible_party_member.push(entry),
-                "death_reaction" | "hp_reaction" | "overstressed_modifier" => {
-                    unparsed.push((key, entry))
-                }
+                "death_reaction"
+                | "hp_reaction"
+                | "overstressed_modifier"
+                | "extra_battle_loot" => unparsed.push((key, entry)),
                 _ => {
                     for (subkey, values) in entry {
                         let existing = other.insert((key.clone(), subkey), values);
@@ -729,7 +733,10 @@ impl Loadable for HeroOverride {
             .to_string();
 
         let darkest_file = std::fs::read_to_string(path)?;
-        let (darkest_file, rest) = darkest_parser().easy_parse(darkest_file.as_str()).unwrap();
+        let (darkest_file, rest) = darkest_parser()
+            .easy_parse(darkest_file.as_str())
+            .map_err(|err| err_context(err, &darkest_file))
+            .unwrap();
         debug_assert_eq!(rest, "");
 
         // OK, now let's get these parts out...
@@ -766,9 +773,10 @@ impl Loadable for HeroOverride {
                 }
                 "mode" => modes.push(entry),
                 "incompatible_party_member" => incompatible_party_member.push(entry),
-                "death_reaction" | "hp_reaction" | "overstressed_modifier" => {
-                    unparsed.push((key, entry))
-                }
+                "death_reaction"
+                | "hp_reaction"
+                | "overstressed_modifier"
+                | "extra_battle_loot" => unparsed.push((key, entry)),
                 _ => {
                     for (subkey, values) in entry {
                         let existing = other.insert((key.clone(), subkey), values);
@@ -1585,7 +1593,11 @@ impl Skill {
 }
 impl Display for Skill {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let effects = if self.effects.is_empty() { "".into() } else { String::from(".effect ") + &self.effects.join(" ") };
+        let effects = if self.effects.is_empty() {
+            "".into()
+        } else {
+            String::from(".effect ") + &self.effects.join(" ")
+        };
         let other = self
             .other
             .iter()

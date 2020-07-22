@@ -6,7 +6,7 @@ use combine::{
         char::{alpha_num, char as exact_char, letter, space},
         repeat::{skip_many, skip_many1, skip_until, take_until},
     },
-    sep_by, sep_by1, ParseError, ParseResult, Parser, Stream, StreamOnce,
+    sep_by, sep_by1, ParseError, ParseResult, Parser, Stream, StreamOnce, easy::Errors, stream::PointerOffset,
 };
 use std::{borrow::Borrow, fmt::Display, hash::Hash, marker::PhantomData};
 
@@ -262,22 +262,29 @@ where
     ))
 }
 
+pub fn err_context<'a>(
+    err: Errors<char, &'a str, PointerOffset<str>>,
+    source: &str,
+) -> Errors<char, &'a str, usize> {
+    let pos = err.position.translate_position(source);
+    let mut err = err.map_position(|_| pos);
+    err.add_error(combine::easy::Error::Message(combine::easy::Info::Owned(
+        "Context: ..."
+            .chars()
+            .chain(source.chars().skip(pos.saturating_sub(10)).take(20))
+            .chain("...".chars())
+            .collect(),
+    )));
+    err
+}
+
 #[cfg(test)]
 mod test {
-    use super::{parser, DarkestEntry, ItemsParser};
+    use super::{parser, DarkestEntry, ItemsParser, err_context};
     use combine::{easy::Errors, stream::PointerOffset, EasyParser};
 
     fn bail(err: Errors<char, &str, PointerOffset<str>>, source: &str) -> ! {
-        let pos = err.position.translate_position(source);
-        let mut err = err.map_position(|_| pos);
-        err.add_error(combine::easy::Error::Message(combine::easy::Info::Owned(
-            "Context: ..."
-                .chars()
-                .chain(source.chars().skip(pos.saturating_sub(10)).take(20))
-                .chain("...".chars())
-                .collect(),
-        )));
-        panic!("{}", err);
+        panic!("{}", err_context(err, source));
     }
 
     #[test]

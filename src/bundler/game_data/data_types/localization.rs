@@ -71,7 +71,7 @@ impl StringsTable {
             }
         }
         // <HACK> Workaround: some localization files contain invalid comments.
-        xml = regex::Regex::new("<!---(.*?)--->")
+        xml = regex::Regex::new("<!--(.*?)--->")
             .unwrap()
             .replace_all(&xml, |cap: &regex::Captures| {
                 warn!("Found invalid comment: {}", &cap[0]);
