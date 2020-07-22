@@ -78,6 +78,11 @@ impl StringsTable {
                 "".to_string()
             })
             .into();
+        // <HACK> Workaround: broken CDATA in some files.
+        xml = regex::Regex::new("<!\\[CDATA([^\\[])").unwrap().replace_all(&xml, |cap: &regex::Captures| {
+            warn!("Found invalid CDATA: {}", &cap[0]);
+            format!("<![CDATA[{}", &cap[1])
+        }).into();
 
         // OK, hacks are ended for now, let's load
         let document = roxmltree::Document::parse(&xml)
