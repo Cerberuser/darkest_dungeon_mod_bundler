@@ -78,6 +78,13 @@ impl StringsTable {
                 "".to_string()
             })
             .into();
+        xml = regex::Regex::new("<!--(.*?[^-])>")
+            .unwrap()
+            .replace_all(&xml, |cap: &regex::Captures| {
+                warn!("Found invalid comment: {}", &cap[0]);
+                cap[1].to_string() + " --"
+            })
+            .into();
         // <HACK> Workaround: broken CDATA in some files.
         xml = regex::Regex::new("<!\\[CDATA([^\\[])").unwrap().replace_all(&xml, |cap: &regex::Captures| {
             warn!("Found invalid CDATA: {}", &cap[0]);
