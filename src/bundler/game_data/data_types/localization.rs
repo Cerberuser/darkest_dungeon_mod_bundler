@@ -8,17 +8,17 @@ use crate::bundler::{
 use crossbeam_channel::bounded;
 use cursive::{
     traits::{Nameable, Resizable},
-    views::{Button, Dialog, LinearLayout, Panel, TextArea, TextView},
+    views::{Button, Dialog, LinearLayout, Panel, SelectView, TextArea, TextView},
 };
 use log::*;
+use roxmltree::Node;
 use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     io::{Read, Write},
     path::Path,
 };
-use roxmltree::Node;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct StringsTable(HashMap<String, LanguageTable>);
@@ -99,7 +99,7 @@ impl StringsTable {
         let document = roxmltree::Document::parse(&xml)
             .unwrap_or_else(|err| panic!("Malformed localization XML {:?}: {:?}", path, err));
         let root = document.root_element();
-        
+
         // Oh damn... they're not.
         // <HACK> Sometimes one language table is pulled out into its own file bare, without root tag.
         match root.tag_name().name() {
@@ -209,14 +209,24 @@ impl BTreePatchable for StringsTable {
                     .push((mod_name.clone(), item));
             }
         }
-        for (path, mut changes) in changes {
+        for (path, changes) in changes {
             debug_assert!(!changes.is_empty());
-            changes.retain(|change| !matches!(change, (_, ItemChange::Removed)));
+            // debug!("Changes on path {:?}: {:?}", path, changes);
+            let changes = changes
+                .into_iter()
+                .filter(|(_, value)| !matches!(value, ItemChange::Removed))
+                .map(|(key, value)| (value, key))
+                .collect::<BTreeMap<_, _>>()
+                .into_iter()
+                .map(|(value, key)| (key, value))
+                .collect::<Vec<_>>();
             if changes.is_empty() {
                 merged.insert(path, ItemChange::Removed);
             } else if changes.len() == 1 {
+                // debug!("Changes collapsed to single entry");
                 merged.insert(path, changes.into_iter().next().unwrap().1);
             } else {
+                debug!("Changes collapsed: {:?}", changes);
                 for change in changes {
                     unmerged.entry(path.clone()).or_default().push(change)
                 }
@@ -227,79 +237,134 @@ impl BTreePatchable for StringsTable {
 
     fn ask_for_resolve(&self, sink: &mut cursive::CbSink, conflicts: Conflicts) -> Patch {
         let mut patch = Patch::new();
+        let mut per_lang: BTreeMap<_, Conflicts> = BTreeMap::new();
         for (path, conflict) in conflicts {
-            debug_assert!(path.len() == 2);
-            let language = path.get(0).unwrap().clone();
-            let entry_key = path.get(1).unwrap().clone();
+            per_lang
+                .entry(path[0].clone())
+                .or_default()
+                .insert(path, conflict);
+        }
+        for (language, conflicts) in per_lang {
+            #[derive(Copy, Clone)]
+            enum LangMergeChoice {
+                Manual,
+                Arbitrary,
+            }
 
             let (sender, receiver) = bounded(0);
             crate::run_update(sink, move |cursive| {
-                let mut layout = LinearLayout::vertical();
-                conflict.into_iter().for_each(|(name, line)| {
-                    layout.add_child(
-                        LinearLayout::horizontal()
-                            .child(
-                                Panel::new(
-                                    match &line {
-                                        ItemChange::Set(GameDataValue::String(value)) => {
-                                            TextView::new(value.clone())
-                                        }
-                                        ItemChange::Removed => TextView::new("<Removed>"),
-                                        otherwise => panic!(
-                                            "Unexpected value in localization table: {:?}",
-                                            otherwise
-                                        ),
-                                    }
-                                    .full_width(),
-                                )
-                                .title(name),
-                            )
-                            .child(Button::new("Move to input", move |cursive| {
-                                cursive.call_on_name("Line resolve edit", |edit: &mut TextArea| {
-                                    edit.set_content(match &line {
-                                        ItemChange::Set(GameDataValue::String(value)) => {
-                                            value.clone()
-                                        }
-                                        ItemChange::Removed => "".into(),
-                                        otherwise => panic!(
-                                            "Unexpected value in localization table: {:?}",
-                                            otherwise
-                                        ),
-                                    })
-                                });
-                            })),
-                    )
-                });
-                let resolve_sender = sender.clone();
                 crate::push_screen(
                     cursive,
                     Dialog::around(
-                        layout.child(TextArea::new().with_name("Line resolve edit").full_width()),
+                        LinearLayout::vertical().child(TextView::new(indoc::indoc! {
+                            "Conflicting localization entries were detected.
+                            If you don't care about this language, select \"Auto-resolve\", and the bundler
+                            will choose some value for you.
+                            Otherwise, select \"Resolve manually\" and select the desired entries for each key."
+                        })).child(Panel::new(
+                            SelectView::new()
+                                .item("Resolve manually", LangMergeChoice::Manual)
+                                .item("Auto-resolve", LangMergeChoice::Arbitrary)
+                                .on_submit(move |cursive, value| {
+                                    cursive.pop_layer();
+                                    let _ = sender.send(*value);
+                                })
+                            )
+                        ),
                     )
                     .title(format!(
-                        "Resolving entry: language = {}, entry = {}",
-                        language, entry_key,
+                        "Conflicting localizations for language: {:?}",
+                        language
                     ))
-                    .button("Resolve", move |cursive| {
-                        let value = cursive
-                            .call_on_name("Line resolve edit", |edit: &mut TextArea| {
-                                edit.get_content().to_owned()
-                            })
-                            .unwrap();
-                        cursive.pop_layer();
-                        resolve_sender.send(ItemChange::Set(value.into())).unwrap();
-                    })
-                    .button("Drop", move |cursive| {
-                        cursive.pop_layer();
-                        sender.send(ItemChange::Removed).unwrap();
-                    })
                     .h_align(cursive::align::HAlign::Center),
                 );
             });
             let choice = receiver
                 .recv()
                 .expect("Sender was dropped without sending anything");
-            patch.insert(path, choice);
+
+            for (path, mut conflict) in conflicts {
+                match choice {
+                    LangMergeChoice::Arbitrary => {
+                        patch.insert(path, conflict.remove(0).1);
+                    }
+                    LangMergeChoice::Manual => {
+                        debug_assert!(path.len() == 2);
+                        let language = path.get(0).unwrap().clone();
+                        let entry_key = path.get(1).unwrap().clone();
+
+                        let (sender, receiver) = bounded(0);
+                        crate::run_update(sink, move |cursive| {
+                            let mut layout = LinearLayout::vertical();
+                            conflict.into_iter().for_each(|(name, line)| {
+                                layout.add_child(
+                                    LinearLayout::horizontal()
+                                        .child(
+                                            Panel::new(
+                                                match &line {
+                                                    ItemChange::Set(GameDataValue::String(value)) => {
+                                                        TextView::new(value.clone())
+                                                    }
+                                                    otherwise => panic!(
+                                                        "Unexpected value in localization table: {:?}",
+                                                        otherwise
+                                                    ),
+                                                }
+                                                .full_width(),
+                                            )
+                                            .title(name),
+                                        )
+                                        .child(Button::new("Move to input", move |cursive| {
+                                            cursive.call_on_name(
+                                                "Line resolve edit",
+                                                |edit: &mut TextArea| {
+                                                    edit.set_content(match &line {
+                                                        ItemChange::Set(GameDataValue::String(value)) => {
+                                                            value.clone()
+                                                        }
+                                                        otherwise => panic!(
+                                                            "Unexpected value in localization table: {:?}",
+                                                            otherwise
+                                                        ),
+                                                    })
+                                                },
+                                            );
+                                        })),
+                                )
+                            });
+                            let resolve_sender = sender.clone();
+                            crate::push_screen(
+                                cursive,
+                                Dialog::around(layout.child(
+                                    TextArea::new().with_name("Line resolve edit").full_width(),
+                                ))
+                                .title(format!(
+                                    "Resolving entry: language = {}, entry = {}",
+                                    language, entry_key,
+                                ))
+                                .button("Resolve", move |cursive| {
+                                    let value = cursive
+                                        .call_on_name("Line resolve edit", |edit: &mut TextArea| {
+                                            edit.get_content().to_owned()
+                                        })
+                                        .unwrap();
+                                    cursive.pop_layer();
+                                    resolve_sender.send(ItemChange::Set(value.into())).unwrap();
+                                })
+                                .button("Drop", move |cursive| {
+                                    cursive.pop_layer();
+                                    sender.send(ItemChange::Removed).unwrap();
+                                })
+                                .h_align(cursive::align::HAlign::Center),
+                            );
+                        });
+                        let choice = receiver
+                            .recv()
+                            .expect("Sender was dropped without sending anything");
+                        patch.insert(path, choice);
+                    }
+                }
+            }
         }
         patch
     }

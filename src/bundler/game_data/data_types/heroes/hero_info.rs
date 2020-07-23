@@ -608,14 +608,83 @@ impl BTreePatchable for HeroInfo {
 
 impl BTreePatchable for HeroOverride {
     fn apply_patch(&mut self, patch: Patch) -> Result<(), ()> {
-        debug!("{:?}", patch);
-        todo!("Applying patch to hero override");
+        for (mut path, change) in patch {
+            match path.get(0).unwrap().as_str() {
+                "resistances" => self.resistances.apply(path, change),
+                "weapons" => todo!("Patching weapons in hero override"),
+                "armours" => todo!("Patching armours in hero override"),
+                "skills" => todo!("Patching skills in hero override"),
+                "riposte_skill" => self
+                    .riposte_skill
+                    .get_or_insert_with(Default::default)
+                    .apply(path, change),
+                "move_skill" => self
+                    .move_skill
+                    .get_or_insert_with(Default::default)
+                    .apply(path, change),
+                "tags" => patch_list(&mut self.tags, path, change),
+                "extra_stack_limit" => patch_list(&mut self.extra_stack_limit, path, change),
+                "deaths_door" => todo!("Patching deaths_door in hero override"),
+                "modes" => todo!("Patching modes in hero override"),
+                "incompatible_party_member" => {
+                    todo!("Patching incompatible_party_member in hero override")
+                }
+                "unparsed" => self.unparsed.apply(path, change),
+                "other" => {
+                    let first = path.remove(1);
+                    let second = path.remove(2);
+                    match change.into_option().map(GameDataValue::unwrap_string) {
+                        Some(s) => {
+                            self.other.entry((first, second)).or_default().push(s);
+                        }
+                        None => {
+                            self.other.remove(&(first, second));
+                        }
+                    }
+                }
+                _ => panic!("Unexpected key in hero override data patch: {:?}", path),
+            }
+        }
+        Ok(())
     }
     fn try_merge_patches(
         &self,
-        _patches: impl IntoIterator<Item = ModFileChange>,
+        patches: impl IntoIterator<Item = ModFileChange>,
     ) -> (Patch, Conflicts) {
-        todo!("Merging patches to hero override");
+        let mut merged = Patch::new();
+        let mut unmerged = Conflicts::new();
+
+        // TODO - this is almost the same as `regroup` in `resolve` module
+        let mut changes = HashMap::new();
+        for (mod_name, mod_changes) in patches {
+            for (path, item) in mod_changes {
+                // False positive from clippy - https://github.com/rust-lang/rust-clippy/issues/5693
+                #[allow(clippy::or_fun_call)]
+                changes
+                    .entry(path)
+                    .or_insert(vec![])
+                    .push((mod_name.clone(), item));
+            }
+        }
+        for (path, changes) in changes {
+            let changes = changes
+                .into_iter()
+                .map(|(key, value)| (value, key))
+                .collect::<BTreeMap<_, _>>()
+                .into_iter()
+                .map(|(value, key)| (key, value))
+                .collect::<Vec<_>>();
+            debug_assert!(!changes.is_empty());
+            if changes.len() == 1 {
+                merged.insert(path, changes.into_iter().next().unwrap().1);
+            } else {
+                for change in changes {
+                    unmerged.entry(path.clone()).or_default().push(change)
+                }
+            }
+        }
+
+        (merged, unmerged)
     }
     fn ask_for_resolve(&self, _sink: &mut cursive::CbSink, _patches: Conflicts) -> Patch {
         todo!("Resolving conflicts on hero override");

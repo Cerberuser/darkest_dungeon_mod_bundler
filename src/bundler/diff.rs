@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 pub type DataMap = BTreeMap<Vec<String>, GameDataValue>;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub enum ItemChange {
     Set(GameDataValue),
     Removed,

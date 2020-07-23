@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::{
+    cmp::Ordering,
     collections::{BTreeMap, HashMap},
     fmt::Display,
     path::{Path, PathBuf},
@@ -17,9 +18,38 @@ use super::{
 };
 use log::debug;
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct OrdF32(f32);
+impl PartialOrd for OrdF32 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl PartialEq for OrdF32 {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+impl Ord for OrdF32 {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self.0.is_nan(), other.0.is_nan()) {
+            (false, false) => self.0.partial_cmp(&other.0).unwrap_or_else(|| {
+                panic!(
+                    "Both {:?} and {:?} are non-NaN, why did it fail?",
+                    self, other
+                )
+            }),
+            (false, true) => Ordering::Less,
+            (true, false) => Ordering::Greater,
+            (true, true) => Ordering::Equal,
+        }
+    }
+}
+impl Eq for OrdF32 {}
+
 macro_rules! game_data_value {
     ($($id:ident($ty:ty)),+ $(,)?) => {
-        #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+        #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
         #[serde(untagged)]
         pub enum GameDataValue {
             $(
@@ -38,9 +68,14 @@ macro_rules! game_data_value {
 game_data_value! {
     Bool(bool),
     Int(i32),
-    Float(f32),
+    Float(OrdF32),
     String(String),
     Next(Option<String>),
+}
+impl From<f32> for GameDataValue {
+    fn from(value: f32) -> Self {
+        Self::Float(OrdF32(value))
+    }
 }
 
 #[allow(dead_code)] // since some unwrap_* methods are yet unused
@@ -59,7 +94,7 @@ impl GameDataValue {
     }
     pub fn unwrap_f32(self) -> f32 {
         match self {
-            GameDataValue::Float(f) => f,
+            GameDataValue::Float(f) => f.0,
             otherwise => panic!("Expected float, got {:?}", otherwise),
         }
     }
@@ -79,7 +114,7 @@ impl GameDataValue {
         match self {
             GameDataValue::Bool(b) => *b = input.parse().map_err(|_| {})?,
             GameDataValue::Int(i) => *i = input.parse().map_err(|_| {})?,
-            GameDataValue::Float(f) => *f = input.parse().map_err(|_| {})?,
+            GameDataValue::Float(f) => *f = input.parse().map(OrdF32).map_err(|_| {})?,
             GameDataValue::String(s) => *s = input.parse().map_err(|_| {})?,
             _ => panic!("Next-like and Unit-like values can't be parsed into"),
         };
@@ -91,7 +126,7 @@ impl Display for GameDataValue {
         match self {
             GameDataValue::Bool(b) => b.fmt(f),
             GameDataValue::Int(i) => i.fmt(f),
-            GameDataValue::Float(d) => d.fmt(f),
+            GameDataValue::Float(d) => d.0.fmt(f),
             GameDataValue::String(s) => s.fmt(f),
             GameDataValue::Next(Some(s)) => s.fmt(f),
             GameDataValue::Next(None) => {
